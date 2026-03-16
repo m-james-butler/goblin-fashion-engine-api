@@ -1,0 +1,30 @@
+package com.jayice.goblinfashionengineapi.api.domain.enums;
+
+public enum Color {
+    BLACK,
+    CHARCOAL,
+    GREY,
+    WHITE,
+    CREAM,
+    BEIGE,
+    TAN,
+    BROWN,
+    NAVY,
+    BLUE,
+    LIGHT_BLUE,
+    DARK_INDIGO,
+    GREEN,
+    OLIVE,
+    BURGUNDY,
+    RED,
+    PINK,
+    PURPLE,
+    YELLOW,
+    ORANGE,
+    MULTI,
+    SILVER,
+    GOLD,
+    KHAKI,
+    RUST,
+    DARK_TEAL
+}
