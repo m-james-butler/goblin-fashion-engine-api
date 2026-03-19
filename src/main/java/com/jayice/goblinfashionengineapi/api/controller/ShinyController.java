@@ -1,6 +1,7 @@
 package com.jayice.goblinfashionengineapi.api.controller;
 
 import com.jayice.goblinfashionengineapi.api.domain.model.Shiny;
+import com.jayice.goblinfashionengineapi.api.legacy.model.LegacyShiny;
 import com.jayice.goblinfashionengineapi.api.service.ShinyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,7 +18,7 @@ public class ShinyController {
     private final ShinyService shinyService;
 
     @GetMapping("/{hoardId}/shinies")
-    public List<Shiny> getShiniesByHoardId(@PathVariable String hoardId) {
+    public List<LegacyShiny> getShiniesByHoardId(@PathVariable String hoardId) {
         return shinyService.getShiniesByHoardId(hoardId);
     }
 }

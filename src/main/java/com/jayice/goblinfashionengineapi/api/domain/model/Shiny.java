@@ -13,14 +13,12 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Shiny {
+
     private String id;
     private String goblinId;
     private String hoardId;
 
     private String name;
-    private String filename;
-    private String notes;
-
     private int count;
 
     private ShinyCategory category;
@@ -37,7 +35,6 @@ public class Shiny {
 
     private String fabric;
     private String fit;
-
     private Integer warmth;
 
     private boolean officeOk;
@@ -47,6 +44,7 @@ public class Shiny {
 
     private String imagePath;
     private ShinyStatus status;
+    private String notes;
 
     private String createdAt;
     private String updatedAt;

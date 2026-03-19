@@ -1,9 +1,15 @@
 package com.jayice.goblinfashionengineapi.api.domain.enums;
 
 public enum ClutterItemRole {
-    PRIMARY,
-    SUPPORTING,
+    TOP,
+    BOTTOM,
+    ONE_PIECE,
+    OUTERWEAR,
+    SHOES,
     ACCESSORY,
-    STATEMENT,
-    OPTIONAL
+    BAG,
+    JEWELLERY,
+    UNDERLAYER,
+    LEGWEAR,
+    OTHER
 }
