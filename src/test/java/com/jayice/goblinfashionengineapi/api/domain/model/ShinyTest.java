@@ -49,4 +49,19 @@ class ShinyTest {
                 Shiny.class
         ));
     }
+
+    @Test
+    void omitsNullOptionalFieldsFromJson() throws Exception {
+        Shiny shiny = Shiny.builder()
+                .id("s-1")
+                .name("Basic")
+                .count(1)
+                .build();
+
+        String json = objectMapper.writeValueAsString(shiny);
+
+        assertFalse(json.contains("\"colorSecondary\""));
+        assertFalse(json.contains("\"fit\""));
+        assertFalse(json.contains("\"imagePath\""));
+    }
 }
