@@ -1,5 +1,6 @@
 package com.jayice.goblinfashionengineapi.api.domain.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jayice.goblinfashionengineapi.api.domain.enums.QuirkRuleType;
 import com.jayice.goblinfashionengineapi.api.domain.enums.QuirkScopeType;
 import lombok.AllArgsConstructor;
@@ -31,4 +32,14 @@ public class Quirk {
 
     private String createdAt;
     private String updatedAt;
+
+    @JsonProperty("isActive")
+    public boolean isActive() {
+        return isActive;
+    }
+
+    @JsonProperty("isActive")
+    public void setActive(boolean isActive) {
+        this.isActive = isActive;
+    }
 }
