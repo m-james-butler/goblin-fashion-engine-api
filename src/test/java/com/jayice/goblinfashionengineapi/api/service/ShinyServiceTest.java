@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class ShinyServiceTest {
 
     @Test
-    void returnsCanonicalShinyListFromLegacyInventory() {
+    void validHoardIdReturnsMappedCanonicalShinies() {
         LegacyShiny legacy = new LegacyShiny();
         legacy.setId("item-1");
         legacy.setName("Blue Tee");
@@ -35,10 +35,29 @@ class ShinyServiceTest {
 
         ShinyService shinyService = new ShinyService(inventoryService, new ShinyMapper());
 
-        List<Shiny> result = shinyService.getShiniesByHoardId("hoard-1");
+        List<Shiny> result = shinyService.getShiniesByHoardId("HRD-001");
 
         assertEquals(1, result.size());
         assertEquals("item-1", result.getFirst().getId());
         assertEquals(ShinyCategory.TOP, result.getFirst().getCategory());
+    }
+
+    @Test
+    void unknownHoardIdReturnsEmptyList() {
+        LegacyShiny legacy = new LegacyShiny();
+        legacy.setId("item-1");
+
+        LegacyInventoryService inventoryService = new LegacyInventoryService(new ObjectMapper()) {
+            @Override
+            public List<LegacyShiny> loadInventory() {
+                return List.of(legacy);
+            }
+        };
+
+        ShinyService shinyService = new ShinyService(inventoryService, new ShinyMapper());
+
+        List<Shiny> result = shinyService.getShiniesByHoardId("UNKNOWN");
+
+        assertEquals(List.of(), result);
     }
 }
