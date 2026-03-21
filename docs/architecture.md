@@ -9,6 +9,7 @@ The backend is a Spring Boot service that currently provides:
 - application startup and HTTP API exposure
 - a simple health endpoint
 - a hoard shinies endpoint backed by classpath JSON data
+- a response DTO boundary for the shiny API contract
 - canonical domain model and enum definitions used by the live shiny response path
 - a legacy-to-canonical mapper layer for inventory normalization
 
@@ -35,12 +36,14 @@ com.jayice.goblinfashionengineapi
     |-- controller
     |   |-- HealthController
     |   `-- ShinyController
+    |-- dto
     |-- domain
     |   |-- enums
     |   `-- model
     |-- legacy
     |   |-- mapper
     |   `-- model
+    |-- mapper
     `-- service
         |-- LegacyInventoryService
         `-- ShinyService
@@ -49,7 +52,6 @@ com.jayice.goblinfashionengineapi
 Not currently present in the implementation:
 
 - repository layer
-- dto layer
 - exception package
 - config package
 
@@ -65,7 +67,9 @@ GET /api/hoards/{hoardId}/shinies
     -> src/main/resources/data/inventory.json
     -> List<LegacyShiny>
     -> ShinyMapper (legacy.mapper)
-    -> List<Shiny> response
+    -> List<Shiny> (canonical)
+    -> ShinyDtoMapper (api.mapper)
+    -> List<ShinyResponseDto> response
 ```
 
 Important current behavior:
@@ -74,7 +78,8 @@ Important current behavior:
 - If `hoardId` matches `HRD-001` (case-insensitive), the endpoint returns the full mapped inventory.
 - Any other `hoardId` returns an empty list.
 - Unknown `hoardId` currently returns `200` with `[]` (no 404 handling yet).
-- The endpoint returns canonical `Shiny` objects.
+- `ShinyService` returns canonical `Shiny` objects internally.
+- `ShinyController` maps canonical `Shiny` to `ShinyResponseDto` before returning API responses.
 - `ShinyMapper` normalizes and maps legacy string fields to canonical enums with fail-safe handling.
 - Optional `Shiny` fields with `null` values are omitted from JSON output via `@JsonInclude(JsonInclude.Include.NON_NULL)`.
 - Mapper fallback behavior: if legacy `name` is `null`, canonical `name` is mapped from legacy `id`.
@@ -103,7 +108,8 @@ Current behavior:
 
 - loads all records from `data/inventory.json`
 - maps `List<LegacyShiny>` to `List<Shiny>` through `ShinyMapper`
-- returns mapped `List<Shiny>` only for `hoardId=HRD-001` (case-insensitive)
+- maps canonical `List<Shiny>` to `List<ShinyResponseDto>` through `ShinyDtoMapper` in the controller
+- returns mapped `List<ShinyResponseDto>` only for `hoardId=HRD-001` (case-insensitive)
 - returns `[]` for any other `hoardId`
 
 ## Domain Model (Implemented)
@@ -190,8 +196,9 @@ Current test coverage includes:
 - service tests (`ShinyServiceTest`) verifying:
   - valid transitional hoard id (`HRD-001`) returns mapped canonical shinies
   - unknown hoard id returns empty list
+- DTO mapper unit tests (`ShinyDtoMapperTest`) verifying canonical-to-response DTO mapping
 - controller endpoint tests (`ShinyControllerTest`) verifying:
-  - `GET /api/hoards/HRD-001/shinies` returns `200` with a canonical shiny JSON array
+  - `GET /api/hoards/HRD-001/shinies` returns `200` with a shiny response DTO JSON array
   - `GET /api/hoards/UNKNOWN/shinies` returns `200` with `[]`
 
 Not currently covered by tests:
@@ -204,7 +211,6 @@ Not yet implemented in code:
 
 - persistence layer (Firestore or other repository)
 - authentication/authorization enforcement
-- DTO boundary for public API contracts
 - quirk rule evaluation engine
 - clutter generation/orchestration
 - OpenAI integration
@@ -212,8 +218,8 @@ Not yet implemented in code:
 
 ## Near-Term Recommended Architecture Steps
 
-1. Introduce DTOs before external contract stabilization.
-2. Add legacy data quality reporting for unmapped/unknown enum values.
-3. Evaluate upgrading JaCoCo/JDK test tooling compatibility to stabilize full test execution.
-4. Add legacy inventory loading error scenario tests.
-5. Replace transitional hoard-id gate with repository-backed hoard ownership filtering.
+1. Add legacy data quality reporting for unmapped/unknown enum values.
+2. Evaluate upgrading JaCoCo/JDK test tooling compatibility to stabilize full test execution.
+3. Add legacy inventory loading error scenario tests.
+4. Replace transitional hoard-id gate with repository-backed hoard ownership filtering.
+5. Introduce request DTOs and additional endpoint-specific response contracts as APIs expand.

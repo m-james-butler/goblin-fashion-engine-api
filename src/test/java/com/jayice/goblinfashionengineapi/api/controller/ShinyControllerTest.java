@@ -2,6 +2,8 @@ package com.jayice.goblinfashionengineapi.api.controller;
 
 import com.jayice.goblinfashionengineapi.api.domain.enums.ShinyCategory;
 import com.jayice.goblinfashionengineapi.api.domain.model.Shiny;
+import com.jayice.goblinfashionengineapi.api.dto.ShinyResponseDto;
+import com.jayice.goblinfashionengineapi.api.mapper.ShinyDtoMapper;
 import com.jayice.goblinfashionengineapi.api.service.ShinyService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,26 +27,38 @@ class ShinyControllerTest {
     @MockitoBean
     private ShinyService shinyService;
 
+    @MockitoBean
+    private ShinyDtoMapper shinyDtoMapper;
+
     @Test
-    void getShiniesForValidHoardIdReturnsCanonicalArray() throws Exception {
+    void getShiniesForValidHoardIdReturnsResponseDtoArray() throws Exception {
         Shiny shiny = Shiny.builder()
                 .id("item-1")
-                .name("Blue Tee")
+                .name("Canonical Name")
+                .category(ShinyCategory.TOP)
+                .build();
+        ShinyResponseDto shinyResponseDto = ShinyResponseDto.builder()
+                .id("item-1")
+                .name("DTO Name")
                 .category(ShinyCategory.TOP)
                 .build();
 
-        when(shinyService.getShiniesByHoardId("HRD-001")).thenReturn(List.of(shiny));
+        List<Shiny> canonicalShinies = List.of(shiny);
+        when(shinyService.getShiniesByHoardId("HRD-001")).thenReturn(canonicalShinies);
+        when(shinyDtoMapper.toResponseDtoList(canonicalShinies)).thenReturn(List.of(shinyResponseDto));
 
         mockMvc.perform(get("/api/hoards/HRD-001/shinies"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("item-1"))
-                .andExpect(jsonPath("$[0].name").value("Blue Tee"))
+                .andExpect(jsonPath("$[0].name").value("DTO Name"))
                 .andExpect(jsonPath("$[0].category").value("TOP"));
     }
 
     @Test
     void getShiniesForUnknownHoardIdReturnsEmptyArray() throws Exception {
-        when(shinyService.getShiniesByHoardId("UNKNOWN")).thenReturn(List.of());
+        List<Shiny> canonicalShinies = List.of();
+        when(shinyService.getShiniesByHoardId("UNKNOWN")).thenReturn(canonicalShinies);
+        when(shinyDtoMapper.toResponseDtoList(canonicalShinies)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/hoards/UNKNOWN/shinies"))
                 .andExpect(status().isOk())
