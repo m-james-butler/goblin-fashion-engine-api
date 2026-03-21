@@ -1,6 +1,5 @@
 package com.jayice.goblinfashionengineapi.api.domain.model;
 
-import com.jayice.goblinfashionengineapi.api.domain.model.QuirkCondition;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

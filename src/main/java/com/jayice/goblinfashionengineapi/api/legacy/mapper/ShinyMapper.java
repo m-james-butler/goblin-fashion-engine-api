@@ -38,6 +38,11 @@ public class ShinyMapper {
                 .publicWear(Boolean.TRUE.equals(legacy.getPublicWear()))
                 .includeInEngine(Boolean.TRUE.equals(legacy.getIncludeInEngine()));
 
+        mapOptionalFields(legacy, builder);
+        return builder.build();
+    }
+
+    private void mapOptionalFields(LegacyShiny legacy, Shiny.ShinyBuilder builder) {
         if (legacy.getSubcategory() != null) {
             builder.subcategory(legacy.getSubcategory());
         }
@@ -96,8 +101,6 @@ public class ShinyMapper {
         if (status != null) {
             builder.status(status);
         }
-
-        return builder.build();
     }
 
     /**
@@ -228,7 +231,7 @@ public class ShinyMapper {
         normalized = normalized.replace("&", "AND");
         normalized = normalized.replaceAll("[^A-Z0-9]+", "_");
         normalized = normalized.replaceAll("_+", "_");
-        normalized = normalized.replaceAll("^_|_$", "");
+        normalized = normalized.replaceAll("(^_)|(_$)", "");
         return normalized;
     }
 

@@ -6,7 +6,9 @@ import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.List;
 
 @Service
@@ -21,14 +23,14 @@ public class LegacyInventoryService {
     public List<LegacyShiny> loadInventory() {
         try {
             ClassPathResource resource = new ClassPathResource("data/inventory.json");
-            InputStream inputStream = resource.getInputStream();
-
-            return objectMapper.readValue(
-                    inputStream,
-                    new TypeReference<List<LegacyShiny>>() {}
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to load inventory.json", e);
+            try (InputStream inputStream = resource.getInputStream()) {
+                return objectMapper.readValue(
+                        inputStream,
+                        new TypeReference<List<LegacyShiny>>() {}
+                );
+            }
+        } catch (IOException exception) {
+            throw new UncheckedIOException("Failed to load inventory.json", exception);
         }
     }
 }
