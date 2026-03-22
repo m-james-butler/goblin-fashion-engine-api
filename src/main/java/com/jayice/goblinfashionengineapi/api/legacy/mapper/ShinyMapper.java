@@ -3,6 +3,8 @@ package com.jayice.goblinfashionengineapi.api.legacy.mapper;
 import com.jayice.goblinfashionengineapi.api.domain.enums.*;
 import com.jayice.goblinfashionengineapi.api.domain.model.Shiny;
 import com.jayice.goblinfashionengineapi.api.legacy.model.LegacyShiny;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -14,6 +16,7 @@ import java.util.Locale;
  */
 @Component
 public class ShinyMapper {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ShinyMapper.class);
 
     /**
      * Converts one legacy shiny record into canonical shape.
@@ -26,7 +29,8 @@ public class ShinyMapper {
             return null;
         }
 
-        ShinyCategory category = toShinyCategory(legacy.getCategory());
+        String shinyId = legacy.getId();
+        ShinyCategory category = toShinyCategory(legacy.getCategory(), shinyId);
 
         Shiny.ShinyBuilder builder = Shiny.builder()
                 .id(legacy.getId())
@@ -38,11 +42,11 @@ public class ShinyMapper {
                 .publicWear(Boolean.TRUE.equals(legacy.getPublicWear()))
                 .includeInEngine(Boolean.TRUE.equals(legacy.getIncludeInEngine()));
 
-        mapOptionalFields(legacy, builder);
+        mapOptionalFields(legacy, builder, shinyId);
         return builder.build();
     }
 
-    private void mapOptionalFields(LegacyShiny legacy, Shiny.ShinyBuilder builder) {
+    private void mapOptionalFields(LegacyShiny legacy, Shiny.ShinyBuilder builder, String shinyId) {
         if (legacy.getSubcategory() != null) {
             builder.subcategory(legacy.getSubcategory());
         }
@@ -62,32 +66,32 @@ public class ShinyMapper {
             builder.notes(legacy.getNotes());
         }
 
-        List<Context> contexts = toContexts(legacy.getPrimaryContext(), legacy.getSecondaryContext());
+        List<Context> contexts = toContexts(legacy.getPrimaryContext(), legacy.getSecondaryContext(), shinyId);
         if (!contexts.isEmpty()) {
             builder.contexts(contexts);
         }
 
-        Formality formality = toFormality(legacy.getFormality());
+        Formality formality = toFormality(legacy.getFormality(), shinyId);
         if (formality != null) {
             builder.formality(formality);
         }
 
-        Attention attention = toAttention(legacy.getAttentionLevel());
+        Attention attention = toAttention(legacy.getAttentionLevel(), shinyId);
         if (attention != null) {
             builder.attention(attention);
         }
 
-        Color colorPrimary = toColor(legacy.getColorPrimary());
+        Color colorPrimary = toColor(legacy.getColorPrimary(), "colorPrimary", shinyId);
         if (colorPrimary != null) {
             builder.colorPrimary(colorPrimary);
         }
 
-        Color colorSecondary = toColor(legacy.getColorSecondary());
+        Color colorSecondary = toColor(legacy.getColorSecondary(), "colorSecondary", shinyId);
         if (colorSecondary != null) {
             builder.colorSecondary(colorSecondary);
         }
 
-        Pattern pattern = toPattern(legacy.getPattern());
+        Pattern pattern = toPattern(legacy.getPattern(), shinyId);
         if (pattern != null) {
             builder.pattern(pattern);
         }
@@ -97,7 +101,7 @@ public class ShinyMapper {
             builder.engineInclusionPolicy(inclusionPolicy);
         }
 
-        ShinyStatus status = toStatus(legacy.getStatus());
+        ShinyStatus status = toStatus(legacy.getStatus(), shinyId);
         if (status != null) {
             builder.status(status);
         }
@@ -120,7 +124,7 @@ public class ShinyMapper {
                 .toList();
     }
 
-    private ShinyCategory toShinyCategory(String value) {
+    private ShinyCategory toShinyCategory(String value, String shinyId) {
         String normalized = normalize(value);
         if (normalized == null) {
             return null;
@@ -132,7 +136,7 @@ public class ShinyMapper {
             case "PANTS", "SHORTS" -> ShinyCategory.BOTTOM;
             case "SHIRTS" -> ShinyCategory.TOP;
             case "SOCKS", "UNDERWEAR" -> ShinyCategory.UNDERGARMENT;
-            default -> valueOfEnum(normalized, ShinyCategory.class);
+            default -> valueOfEnum(normalized, ShinyCategory.class, "category", value, shinyId);
         };
     }
 
@@ -151,21 +155,21 @@ public class ShinyMapper {
         };
     }
 
-    private List<Context> toContexts(String primary, String secondary) {
+    private List<Context> toContexts(String primary, String secondary, String shinyId) {
         List<Context> contexts = new ArrayList<>(2);
-        addContextIfPresent(contexts, primary);
-        addContextIfPresent(contexts, secondary);
+        addContextIfPresent(contexts, primary, "primaryContext", shinyId);
+        addContextIfPresent(contexts, secondary, "secondaryContext", shinyId);
         return contexts;
     }
 
-    private void addContextIfPresent(List<Context> contexts, String value) {
-        Context context = toContext(value);
+    private void addContextIfPresent(List<Context> contexts, String value, String fieldName, String shinyId) {
+        Context context = toContext(value, fieldName, shinyId);
         if (context != null && !contexts.contains(context)) {
             contexts.add(context);
         }
     }
 
-    private Context toContext(String value) {
+    private Context toContext(String value, String fieldName, String shinyId) {
         String normalized = normalize(value);
         if (normalized == null) {
             return null;
@@ -175,10 +179,10 @@ public class ShinyMapper {
             return Context.FORMAL;
         }
 
-        return valueOfEnum(normalized, Context.class);
+        return valueOfEnum(normalized, Context.class, fieldName, value, shinyId);
     }
 
-    private Formality toFormality(String value) {
+    private Formality toFormality(String value, String shinyId) {
         String normalized = normalize(value);
         if (normalized == null) {
             return null;
@@ -186,19 +190,19 @@ public class ShinyMapper {
 
         return switch (normalized) {
             case "ALWAYS", "FUNCTIONAL", "GYM" -> Formality.CASUAL;
-            default -> valueOfEnum(normalized, Formality.class);
+            default -> valueOfEnum(normalized, Formality.class, "formality", value, shinyId);
         };
     }
 
-    private Attention toAttention(String value) {
-        return valueOfEnum(normalize(value), Attention.class);
+    private Attention toAttention(String value, String shinyId) {
+        return valueOfEnum(normalize(value), Attention.class, "attentionLevel", value, shinyId);
     }
 
-    private Color toColor(String value) {
-        return valueOfEnum(normalize(value), Color.class);
+    private Color toColor(String value, String fieldName, String shinyId) {
+        return valueOfEnum(normalize(value), Color.class, fieldName, value, shinyId);
     }
 
-    private Pattern toPattern(String value) {
+    private Pattern toPattern(String value, String shinyId) {
         String normalized = normalize(value);
         if (normalized == null) {
             return null;
@@ -207,7 +211,7 @@ public class ShinyMapper {
         return switch (normalized) {
             case "MICROPATTERN" -> Pattern.MICRO_PATTERN;
             case "MICROPLAID" -> Pattern.MICRO_PLAID;
-            default -> valueOfEnum(normalized, Pattern.class);
+            default -> valueOfEnum(normalized, Pattern.class, "pattern", value, shinyId);
         };
     }
 
@@ -218,8 +222,8 @@ public class ShinyMapper {
         return includeInEngine ? EngineInclusionPolicy.NORMAL : EngineInclusionPolicy.EXCLUDE;
     }
 
-    private ShinyStatus toStatus(String value) {
-        return valueOfEnum(normalize(value), ShinyStatus.class);
+    private ShinyStatus toStatus(String value, String shinyId) {
+        return valueOfEnum(normalize(value), ShinyStatus.class, "status", value, shinyId);
     }
 
     private String normalize(String value) {
@@ -235,7 +239,13 @@ public class ShinyMapper {
         return normalized;
     }
 
-    private <E extends Enum<E>> E valueOfEnum(String normalized, Class<E> enumClass) {
+    private <E extends Enum<E>> E valueOfEnum(
+            String normalized,
+            Class<E> enumClass,
+            String fieldName,
+            String badValue,
+            String shinyId
+    ) {
         if (normalized == null) {
             return null;
         }
@@ -243,6 +253,12 @@ public class ShinyMapper {
         try {
             return Enum.valueOf(enumClass, normalized);
         } catch (IllegalArgumentException exception) {
+            LOGGER.warn(
+                    "Failed enum mapping for field '{}' with value '{}' and shiny id '{}'.",
+                    fieldName,
+                    badValue,
+                    shinyId == null ? "unknown" : shinyId
+            );
             return null;
         }
     }

@@ -1,225 +1,161 @@
-# Goblin Fashion Engine API - Current Backend Architecture
+# Goblin Fashion Engine API - Backend Architecture
 
 ## Overview
 
-This document reflects the current implementation in this repository as of March 20, 2026.
+This document reflects the backend architecture as of March 22, 2026.
 
-The backend is a Spring Boot service that currently provides:
+The backend is now designed around Firestore as the primary persistence path for shiny reads, with Firebase Authentication as the target auth system and Cloud Run as the deployment target.
 
-- application startup and HTTP API exposure
-- a simple health endpoint
-- a hoard shinies endpoint backed by classpath JSON data
-- a response DTO boundary for the shiny API contract
-- canonical domain model and enum definitions used by the live shiny response path
-- a legacy-to-canonical mapper layer for inventory normalization
+Legacy JSON inventory is retained only for optional bootstrap import into Firestore.
 
-The service is still in a transitional phase because source data remains legacy-shaped, but API output is now canonical.
+## Deployment and Platform
 
-## Technology Stack (Current)
+- Google Cloud Platform (GCP)
+- Cloud Run deployment target
+- Cloud Build + Artifact Registry for build and image pipeline
+- Firestore as primary database
+- Firebase Authentication for user auth
+- Cloud Storage reserved for future image storage
 
-- Java 21
-- Spring Boot 4.0.3
-- Maven
-- Spring Web MVC
-- Spring Boot Actuator
-- Spring Validation
-- Lombok
-- Jackson (via `tools.jackson.*` packages in code)
-- JaCoCo (coverage report plugin configured in `pom.xml`)
-
-## Current Package Structure
+## Runtime Read Path (Primary)
 
 ```text
-com.jayice.goblinfashionengineapi
-|-- GoblinFashionEngineApiApplication
-`-- api
-    |-- controller
-    |   |-- HealthController
-    |   `-- ShinyController
-    |-- dto
-    |-- domain
-    |   |-- enums
-    |   `-- model
-    |-- legacy
-    |   |-- mapper
-    |   `-- model
-    |-- mapper
-    `-- service
-        |-- LegacyInventoryService
-        `-- ShinyService
-```
-
-Not currently present in the implementation:
-
-- repository layer
-- exception package
-- config package
-
-## Runtime Architecture (Current Flow)
-
-The implemented shiny data flow is:
-
-```text
-GET /api/hoards/{hoardId}/shinies
+GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies
     -> ShinyController
     -> ShinyService
-    -> LegacyInventoryService
-    -> src/main/resources/data/inventory.json
-    -> List<LegacyShiny>
-    -> ShinyMapper (legacy.mapper)
-    -> List<Shiny> (canonical)
-    -> ShinyDtoMapper (api.mapper)
-    -> List<ShinyResponseDto> response
+    -> ShinyFirestoreGateway
+    -> Firestore path: goblins/{goblinId}/hoards/{hoardId}/shinies
+    -> List<ShinyDocument>
+    -> ShinyFirestoreMapper
+    -> List<Shiny> (canonical domain)
+    -> ShinyDtoMapper
+    -> List<ShinyResponseDto>
 ```
 
-Important current behavior:
-
-- Transitional hoard filtering is implemented in `ShinyService` with a single valid hoard id: `HRD-001`.
-- If `hoardId` matches `HRD-001` (case-insensitive), the endpoint returns the full mapped inventory.
-- Any other `hoardId` returns an empty list.
-- Unknown `hoardId` currently returns `200` with `[]` (no 404 handling yet).
-- `ShinyService` returns canonical `Shiny` objects internally.
-- `ShinyController` maps canonical `Shiny` to `ShinyResponseDto` before returning API responses.
-- `ShinyMapper` normalizes and maps legacy string fields to canonical enums with fail-safe handling.
-- Optional `Shiny` fields with `null` values are omitted from JSON output via `@JsonInclude(JsonInclude.Include.NON_NULL)`.
-- Mapper fallback behavior: if legacy `name` is `null`, canonical `name` is mapped from legacy `id`.
-
-## Implemented Endpoints
-
-### `GET /health`
-
-Implemented in `HealthController`.
-
-Current response shape:
-
-```json
-{
-  "status": "ok",
-  "service": "Goblin Fashion Engine API",
-  "version": "0.0.1"
-}
-```
-
-### `GET /api/hoards/{hoardId}/shinies`
-
-Implemented in `ShinyController` and `ShinyService`.
-
-Current behavior:
-
-- loads all records from `data/inventory.json`
-- maps `List<LegacyShiny>` to `List<Shiny>` through `ShinyMapper`
-- maps canonical `List<Shiny>` to `List<ShinyResponseDto>` through `ShinyDtoMapper` in the controller
-- returns mapped `List<ShinyResponseDto>` only for `hoardId=HRD-001` (case-insensitive)
-- returns `[]` for any other `hoardId`
-
-## Domain Model (Implemented)
-
-Canonical model classes currently defined under `api/domain/model`:
-
-- `Goblin`
-- `Hoard`
-- `Shiny`
-- `Clutter`
-- `ClutterItem`
-- `Quirk`
-- `QuirkCondition`
-- `QuirkConditionGroup`
-- `QuirkEffect`
-
-Notes:
-
-- `Hoard` and `Quirk` include explicit `@JsonProperty` handling for `is...` boolean fields.
-- `Shiny` includes `@JsonInclude(JsonInclude.Include.NON_NULL)` so optional null fields are omitted from responses.
-- These canonical models are tested for JSON serialization behavior in unit tests.
-
-## Enum Model (Implemented)
-
-Enums currently defined under `api/domain/enums`:
-
-- `Attention`
-- `ClutterItemRole`
-- `ClutterSource`
-- `ClutterStatus`
-- `Color`
-- `Context`
-- `EngineInclusionPolicy`
-- `Formality`
-- `Layer`
-- `Pattern`
-- `QuirkOperator`
-- `QuirkRuleType`
-- `QuirkScopeType`
-- `ShinyCategory`
-- `ShinyStatus`
-
-## Legacy Data Path
-
-Current legacy ingestion implementation:
+This is the canonical API/data boundary flow:
 
 ```text
-src/main/resources/data/inventory.json
-    -> LegacyInventoryService.loadInventory()
-    -> ObjectMapper.readValue(..., List<LegacyShiny>)
+Controller -> Service -> Firestore gateway -> ShinyDocument -> ShinyFirestoreMapper -> Shiny -> ShinyDtoMapper -> ShinyResponseDto
 ```
 
-`LegacyShiny` currently includes string-based fields such as:
+### Transitional Endpoint Support
 
-- category and context strings
-- formality and attention-level strings
-- color and pattern strings
-- booleans and metadata fields
+A transitional endpoint still exists:
 
-## Resource Layout
+- `GET /api/hoards/{hoardId}/shinies`
+
+It resolves the goblin id through `app.default-goblin-id` and delegates to the same Firestore-backed service path.
+
+## Endpoint Strategy (Now vs Next)
+
+Current primary endpoint:
+
+- `GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies`
+
+Current compatibility endpoint:
+
+- `GET /api/hoards/{hoardId}/shinies` (transitional only)
+
+Near-term target with Firebase token verification:
+
+- keep goblin ownership authoritative
+- derive `goblinId` from verified Firebase token claims where possible
+- compare path `goblinId` (if provided) against token-derived ownership and reject mismatches
+- after frontend migration, remove transitional compatibility endpoint
+
+This keeps ownership constraints explicit while enabling a clean move to auth-derived tenancy.
+
+## Firestore Data Model
+
+Current shiny reads use nested ownership-first pathing:
 
 ```text
-src/main/resources
-|-- application.properties
-`-- data
-    `-- inventory.json
+goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
 ```
 
-`application.properties` currently sets:
+Planned hierarchy remains:
 
-- `spring.application.name=goblin-fashion-engine-api`
-- exposed actuator endpoints: `health,info`
-- health detail visibility: `always`
+```text
+goblins/{goblinId}
+goblins/{goblinId}/hoards/{hoardId}
+goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
+goblins/{goblinId}/clutters/{clutterId}
+goblins/{goblinId}/quirks/{quirkId}
+```
 
-## Testing State (Current)
+Design intent in code:
 
-Current test coverage includes:
+- goblin ownership is first-class
+- persistence is not modeled around hoard id alone
+- canonical domain model remains internal
+- DTO model remains external API boundary
 
-- application context load test
-- domain model JSON round-trip tests (`Shiny`, `Clutter`, `Quirk`, `QuirkCondition`, `QuirkEffect`)
-- boolean `is...` JSON field behavior tests (`Hoard`, `Quirk`)
-- invalid enum value rejection test (`Shiny`)
-- legacy mapper unit tests (`ShinyMapperTest`) including normalization, null safety, and inventory mapping checks
-- service tests (`ShinyServiceTest`) verifying:
-  - valid transitional hoard id (`HRD-001`) returns mapped canonical shinies
-  - unknown hoard id returns empty list
-- DTO mapper unit tests (`ShinyDtoMapperTest`) verifying canonical-to-response DTO mapping
-- controller endpoint tests (`ShinyControllerTest`) verifying:
-  - `GET /api/hoards/HRD-001/shinies` returns `200` with a shiny response DTO JSON array
-  - `GET /api/hoards/UNKNOWN/shinies` returns `200` with `[]`
+## Firebase / Firestore Configuration
 
-Not currently covered by tests:
+Firestore initialization is under:
 
-- legacy inventory loading error scenarios
+- `api.persistence.firestore.config.FirebaseConfig`
+- `api.persistence.firestore.config.FirebaseProperties`
 
-## Current Gaps / Transitional Areas
+Credential strategy:
 
-Not yet implemented in code:
+- Cloud Run: Application Default Credentials (ADC)
+- Local: ADC via `GOOGLE_APPLICATION_CREDENTIALS` or explicit `firebase.credentials-path`
 
-- persistence layer (Firestore or other repository)
-- authentication/authorization enforcement
-- quirk rule evaluation engine
-- clutter generation/orchestration
-- OpenAI integration
-- image processing/storage integration
+## Legacy JSON Role (Bootstrap Only)
 
-## Near-Term Recommended Architecture Steps
+Legacy components are still present:
 
-1. Add legacy data quality reporting for unmapped/unknown enum values.
-2. Evaluate upgrading JaCoCo/JDK test tooling compatibility to stabilize full test execution.
-3. Add legacy inventory loading error scenario tests.
-4. Replace transitional hoard-id gate with repository-backed hoard ownership filtering.
-5. Introduce request DTOs and additional endpoint-specific response contracts as APIs expand.
+- `LegacyInventoryService`
+- `legacy.mapper.ShinyMapper`
+
+They are no longer the primary read path.
+
+Optional bootstrap importer:
+
+- `LegacyInventoryFirestoreBootstrapImporter`
+
+Importer behavior:
+
+- opt-in via `app.bootstrap.legacy-inventory.enabled=true`
+- can be restricted to empty target collection (`only-if-empty=true`)
+- mapping chain: `LegacyShiny -> Shiny -> ShinyDocument`
+- writes to `goblins/{goblinId}/hoards/{hoardId}/shinies`
+
+## Package Boundaries
+
+```text
+api
+|-- controller
+|-- dto
+|-- domain
+|-- mapper
+|-- legacy
+|   |-- mapper
+|   `-- model
+|-- persistence
+|   `-- firestore
+|       |-- bootstrap
+|       |-- config
+|       |-- mapper
+|       |-- model
+|       `-- repository
+`-- service
+```
+
+## Authentication Direction
+
+Authentication is intentionally staged:
+
+- frontend will send Firebase ID token in `Authorization: Bearer <token>`
+- backend is now Firebase Admin-ready for clean token verification integration
+- full auth enforcement/filter chain is intentionally deferred
+
+## Testing Focus
+
+Current tests cover:
+
+- service behavior using mocked Firestore gateway
+- Firestore mapper (`ShinyDocument <-> Shiny`) behavior
+- controller DTO response shape for goblin-aware shiny endpoint
+- legacy mapper/service tests retained for bootstrap path safety
