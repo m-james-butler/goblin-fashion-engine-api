@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document reflects the backend architecture as of March 22, 2026.
+This document reflects the backend architecture as of March 23, 2026.
 
 The backend is now designed around Firestore as the primary persistence path for shiny reads, with Firebase Authentication as the target auth system and Cloud Run as the deployment target.
 
@@ -21,7 +21,11 @@ Legacy JSON inventory is retained only for optional bootstrap import into Firest
 
 ```text
 GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies
+    -> FirebaseAuthenticationFilter (Authorization: Bearer <id-token>)
+    -> FirebaseTokenVerifier (FirebaseAuth.verifyIdToken)
+    -> AuthenticatedGoblin(uid)
     -> ShinyController
+    -> ownership check: uid == path goblinId
     -> ShinyService
     -> ShinyFirestoreGateway
     -> Firestore path: goblins/{goblinId}/hoards/{hoardId}/shinies
@@ -35,7 +39,7 @@ GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies
 This is the canonical API/data boundary flow:
 
 ```text
-Controller -> Service -> Firestore gateway -> ShinyDocument -> ShinyFirestoreMapper -> Shiny -> ShinyDtoMapper -> ShinyResponseDto
+Filter -> AuthenticatedGoblin -> Controller -> Service -> Firestore gateway -> ShinyDocument -> ShinyFirestoreMapper -> Shiny -> ShinyDtoMapper -> ShinyResponseDto
 ```
 
 ### Transitional Endpoint Support
@@ -44,7 +48,8 @@ A transitional endpoint still exists:
 
 - `GET /api/hoards/{hoardId}/shinies`
 
-It resolves the goblin id through `app.default-goblin-id` and delegates to the same Firestore-backed service path.
+For authenticated requests, it resolves goblin ownership from Firebase UID first.
+`app.default-goblin-id` remains only as an unauthenticated fallback during transition.
 
 ## Endpoint Strategy (Now vs Next)
 
@@ -56,11 +61,16 @@ Current compatibility endpoint:
 
 - `GET /api/hoards/{hoardId}/shinies` (transitional only)
 
-Near-term target with Firebase token verification:
+Current first-stage Firebase enforcement:
 
 - keep goblin ownership authoritative
-- derive `goblinId` from verified Firebase token claims where possible
-- compare path `goblinId` (if provided) against token-derived ownership and reject mismatches
+- verify `Authorization: Bearer <firebase-id-token>` with Firebase Admin SDK
+- derive authoritative `goblinId` from Firebase UID
+- enforce on `GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies`:
+- missing token -> `401`
+- invalid token -> `401`
+- token uid mismatch with path goblinId -> `403`
+- uid/path match -> continue
 - after frontend migration, remove transitional compatibility endpoint
 
 This keeps ownership constraints explicit while enabling a clean move to auth-derived tenancy.
@@ -126,6 +136,11 @@ Importer behavior:
 
 ```text
 api
+|-- auth
+|   |-- context
+|   |-- filter
+|   |-- model
+|   `-- service
 |-- controller
 |-- dto
 |-- domain
@@ -148,13 +163,18 @@ api
 Authentication is intentionally staged:
 
 - frontend will send Firebase ID token in `Authorization: Bearer <token>`
-- backend is now Firebase Admin-ready for clean token verification integration
-- full auth enforcement/filter chain is intentionally deferred
+- backend verifies Firebase ID token in a lightweight `OncePerRequestFilter`
+- verified identity is stored as internal principal model (`AuthenticatedGoblin`) in request context
+- full role/authority and method-level security are intentionally deferred
+- token revocation checks are not enforced yet, but verifier flow is structured to add `checkRevoked=true` later
 
 ## Testing Focus
 
 Current tests cover:
 
+- Firebase token verification service behavior (`uid` mapping and invalid-token handling)
+- controller auth responses for `401`, `403`, and `200` on goblin-aware shiny reads
+- ownership mismatch blocking before service execution
 - service behavior using mocked Firestore gateway
 - Firestore mapper (`ShinyDocument <-> Shiny`) behavior
 - controller DTO response shape for goblin-aware shiny endpoint
