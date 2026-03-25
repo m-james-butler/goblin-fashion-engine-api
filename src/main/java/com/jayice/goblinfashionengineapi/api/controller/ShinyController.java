@@ -2,9 +2,12 @@ package com.jayice.goblinfashionengineapi.api.controller;
 
 import com.jayice.goblinfashionengineapi.api.auth.context.AuthenticatedGoblinRequestContext;
 import com.jayice.goblinfashionengineapi.api.auth.model.AuthenticatedGoblin;
+import com.jayice.goblinfashionengineapi.api.dto.ShinyCreateRequestDto;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyResponseDto;
 import com.jayice.goblinfashionengineapi.api.mapper.ShinyDtoMapper;
+import com.jayice.goblinfashionengineapi.api.service.ShinyAlreadyExistsException;
 import com.jayice.goblinfashionengineapi.api.service.ShinyService;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -12,8 +15,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -53,5 +59,36 @@ public class ShinyController {
             return List.of();
         }
         return shinyDtoMapper.toResponseDtoList(shinyService.getShiniesByGoblinIdAndHoardId(resolvedGoblinId, hoardId));
+    }
+
+    @PostMapping("/goblins/{goblinId}/hoards/{hoardId}/shinies")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ShinyResponseDto createShiny(
+            @PathVariable String goblinId,
+            @PathVariable String hoardId,
+            @Valid @RequestBody ShinyCreateRequestDto shinyCreateRequestDto,
+            HttpServletRequest request
+    ) {
+        AuthenticatedGoblin authenticatedGoblin = AuthenticatedGoblinRequestContext.getRequired(request);
+        if (!authenticatedGoblin.goblinId().equals(goblinId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Authenticated goblin does not match path goblinId."
+            );
+        }
+
+        try {
+            return shinyDtoMapper.toResponseDto(
+                    shinyService.createShiny(
+                            goblinId,
+                            hoardId,
+                            shinyDtoMapper.toCanonicalForCreate(shinyCreateRequestDto)
+                    )
+            );
+        } catch (IllegalArgumentException illegalArgumentException) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, illegalArgumentException.getMessage());
+        } catch (ShinyAlreadyExistsException shinyAlreadyExistsException) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, shinyAlreadyExistsException.getMessage());
+        }
     }
 }

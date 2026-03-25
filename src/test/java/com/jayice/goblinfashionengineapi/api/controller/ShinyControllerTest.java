@@ -6,8 +6,10 @@ import com.jayice.goblinfashionengineapi.api.auth.service.FirebaseTokenVerifier;
 import com.jayice.goblinfashionengineapi.api.auth.service.InvalidFirebaseTokenException;
 import com.jayice.goblinfashionengineapi.api.domain.enums.ShinyCategory;
 import com.jayice.goblinfashionengineapi.api.domain.model.Shiny;
+import com.jayice.goblinfashionengineapi.api.dto.ShinyCreateRequestDto;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyResponseDto;
 import com.jayice.goblinfashionengineapi.api.mapper.ShinyDtoMapper;
+import com.jayice.goblinfashionengineapi.api.service.ShinyAlreadyExistsException;
 import com.jayice.goblinfashionengineapi.api.service.ShinyService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -119,5 +123,120 @@ class ShinyControllerTest {
                 .andExpect(jsonPath("$").isEmpty());
 
         verify(shinyService, never()).getShiniesByGoblinIdAndHoardId("DEFAULT-GBL", "HRD-002");
+    }
+
+    @Test
+    void createShinyWithoutBearerTokenReturnsUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/goblins/GBL-001/hoards/HRD-001/shinies")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"id":"SH-001","name":"Battle Jacket","count":1}
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void createShinyWithOwnershipMismatchReturnsForbidden() throws Exception {
+        when(firebaseTokenVerifier.verify("valid-token"))
+                .thenReturn(new AuthenticatedGoblin("GBL-999"));
+
+        mockMvc.perform(post("/api/goblins/GBL-001/hoards/HRD-001/shinies")
+                        .header("Authorization", "Bearer valid-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"id":"SH-001","name":"Battle Jacket","count":1}
+                                """))
+                .andExpect(status().isForbidden());
+
+        verify(shinyService, never()).createShiny(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Shiny.class));
+    }
+
+    @Test
+    void createShinyWithInvalidRequestReturnsBadRequest() throws Exception {
+        when(firebaseTokenVerifier.verify("good-token"))
+                .thenReturn(new AuthenticatedGoblin("GBL-001"));
+
+        mockMvc.perform(post("/api/goblins/GBL-001/hoards/HRD-001/shinies")
+                        .header("Authorization", "Bearer good-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"id":"","name":"Battle Jacket","count":0}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verify(shinyService, never()).createShiny(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Shiny.class));
+    }
+
+    @Test
+    void createShinyWithMatchingOwnershipReturnsCreatedResponseDto() throws Exception {
+        Shiny canonicalRequest = Shiny.builder()
+                .id("SH-001")
+                .name("Battle Jacket")
+                .count(1)
+                .category(ShinyCategory.OUTERWEAR)
+                .build();
+        Shiny canonicalCreated = Shiny.builder()
+                .id("SH-001")
+                .goblinId("GBL-001")
+                .hoardId("HRD-001")
+                .name("Battle Jacket")
+                .count(1)
+                .category(ShinyCategory.OUTERWEAR)
+                .build();
+        ShinyResponseDto responseDto = ShinyResponseDto.builder()
+                .id("SH-001")
+                .goblinId("GBL-001")
+                .hoardId("HRD-001")
+                .name("Battle Jacket")
+                .count(1)
+                .category(ShinyCategory.OUTERWEAR)
+                .build();
+
+        when(firebaseTokenVerifier.verify("good-token"))
+                .thenReturn(new AuthenticatedGoblin("GBL-001"));
+        when(shinyDtoMapper.toCanonicalForCreate(org.mockito.ArgumentMatchers.any(ShinyCreateRequestDto.class)))
+                .thenReturn(canonicalRequest);
+        when(shinyService.createShiny("GBL-001", "HRD-001", canonicalRequest))
+                .thenReturn(canonicalCreated);
+        when(shinyDtoMapper.toResponseDto(canonicalCreated)).thenReturn(responseDto);
+
+        mockMvc.perform(post("/api/goblins/GBL-001/hoards/HRD-001/shinies")
+                        .header("Authorization", "Bearer good-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"id":"SH-001","name":"Battle Jacket","count":1,"category":"OUTERWEAR"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value("SH-001"))
+                .andExpect(jsonPath("$.goblinId").value("GBL-001"))
+                .andExpect(jsonPath("$.hoardId").value("HRD-001"))
+                .andExpect(jsonPath("$.name").value("Battle Jacket"))
+                .andExpect(jsonPath("$.category").value("OUTERWEAR"));
+    }
+
+    @Test
+    void createShinyWhenDuplicateReturnsConflict() throws Exception {
+        Shiny canonicalRequest = Shiny.builder()
+                .id("SH-001")
+                .name("Battle Jacket")
+                .count(1)
+                .build();
+
+        when(firebaseTokenVerifier.verify("good-token"))
+                .thenReturn(new AuthenticatedGoblin("GBL-001"));
+        when(shinyDtoMapper.toCanonicalForCreate(org.mockito.ArgumentMatchers.any(ShinyCreateRequestDto.class)))
+                .thenReturn(canonicalRequest);
+        when(shinyService.createShiny("GBL-001", "HRD-001", canonicalRequest))
+                .thenThrow(new ShinyAlreadyExistsException("Duplicate shiny id."));
+
+        mockMvc.perform(post("/api/goblins/GBL-001/hoards/HRD-001/shinies")
+                        .header("Authorization", "Bearer good-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"id":"SH-001","name":"Battle Jacket","count":1}
+                                """))
+                .andExpect(status().isConflict());
     }
 }

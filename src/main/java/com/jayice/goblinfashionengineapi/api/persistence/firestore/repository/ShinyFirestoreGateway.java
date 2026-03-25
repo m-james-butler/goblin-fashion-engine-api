@@ -110,6 +110,35 @@ public class ShinyFirestoreGateway {
         }
     }
 
+    public ShinyDocument createShiny(String goblinId, String hoardId, ShinyDocument shinyDocument) {
+        if (!StringUtils.hasText(goblinId) || !StringUtils.hasText(hoardId)) {
+            throw new IllegalArgumentException("goblinId and hoardId are required for Firestore writes.");
+        }
+        if (shinyDocument == null || !StringUtils.hasText(shinyDocument.getId())) {
+            throw new IllegalArgumentException("shiny id is required for create.");
+        }
+
+        shinyDocument.setGoblinId(goblinId);
+        shinyDocument.setHoardId(hoardId);
+
+        DocumentReference documentReference = shinyCollection(goblinId, hoardId).document(shinyDocument.getId());
+        try {
+            documentReference.create(shinyDocument).get();
+            return shinyDocument;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while creating shiny in Firestore.", exception);
+        } catch (ExecutionException exception) {
+            if (isAlreadyExistsFailure(exception.getCause())) {
+                throw new DuplicateShinyException(
+                        "Shiny with id '" + shinyDocument.getId() + "' already exists.",
+                        exception
+                );
+            }
+            throw new IllegalStateException("Failed creating shiny in Firestore.", exception);
+        }
+    }
+
     private CollectionReference shinyCollection(String goblinId, String hoardId) {
         return firestore.collection(GOBLINS_COLLECTION)
                 .document(goblinId)
@@ -133,5 +162,20 @@ public class ShinyFirestoreGateway {
             shinyDocument.setHoardId(hoardId);
         }
         return shinyDocument;
+    }
+
+    private boolean isAlreadyExistsFailure(Throwable throwable) {
+        Throwable currentThrowable = throwable;
+        while (currentThrowable != null) {
+            if ("AlreadyExistsException".equals(currentThrowable.getClass().getSimpleName())) {
+                return true;
+            }
+            String message = currentThrowable.getMessage();
+            if (StringUtils.hasText(message) && message.toUpperCase().contains("ALREADY_EXISTS")) {
+                return true;
+            }
+            currentThrowable = currentThrowable.getCause();
+        }
+        return false;
     }
 }
