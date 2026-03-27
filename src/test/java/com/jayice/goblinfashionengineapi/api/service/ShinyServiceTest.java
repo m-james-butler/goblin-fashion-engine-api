@@ -95,4 +95,47 @@ class ShinyServiceTest {
         assertEquals(ShinyCategory.OUTERWEAR, createdShiny.getCategory());
         verify(gateway).createShiny(eq("GBL-001"), eq("HRD-001"), any(ShinyDocument.class));
     }
+
+    @Test
+    void updateShinyDelegatesToGatewayAndReturnsUpdatedCanonicalShiny() {
+        Shiny shinyToUpdate = Shiny.builder()
+                .id("SH-001")
+                .name("Updated Jacket")
+                .count(2)
+                .category(ShinyCategory.OUTERWEAR)
+                .build();
+        ShinyDocument updatedDocument = ShinyDocument.builder()
+                .id("SH-001")
+                .goblinId("GBL-001")
+                .hoardId("HRD-001")
+                .name("Updated Jacket")
+                .count(2)
+                .category(ShinyCategory.OUTERWEAR)
+                .build();
+
+        ShinyFirestoreGateway gateway = Mockito.mock(ShinyFirestoreGateway.class);
+        when(gateway.updateShiny(eq("GBL-001"), eq("HRD-001"), eq("SH-001"), any(ShinyDocument.class)))
+                .thenReturn(updatedDocument);
+
+        ShinyService shinyService = new ShinyService(gateway, new ShinyFirestoreMapper());
+
+        Shiny updatedShiny = shinyService.updateShiny("GBL-001", "HRD-001", "SH-001", shinyToUpdate);
+
+        assertEquals("SH-001", updatedShiny.getId());
+        assertEquals("GBL-001", updatedShiny.getGoblinId());
+        assertEquals("HRD-001", updatedShiny.getHoardId());
+        assertEquals("Updated Jacket", updatedShiny.getName());
+        assertEquals(2, updatedShiny.getCount());
+        verify(gateway).updateShiny(eq("GBL-001"), eq("HRD-001"), eq("SH-001"), any(ShinyDocument.class));
+    }
+
+    @Test
+    void deleteShinyDelegatesToGateway() {
+        ShinyFirestoreGateway gateway = Mockito.mock(ShinyFirestoreGateway.class);
+        ShinyService shinyService = new ShinyService(gateway, new ShinyFirestoreMapper());
+
+        shinyService.deleteShiny("GBL-001", "HRD-001", "SH-001");
+
+        verify(gateway).deleteShiny("GBL-001", "HRD-001", "SH-001");
+    }
 }

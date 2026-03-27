@@ -24,6 +24,7 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String REQUIRED_AUTH_PATH_PATTERN = "/api/goblins/*/hoards/*/shinies";
+    private static final String REQUIRED_AUTH_ITEM_PATH_PATTERN = "/api/goblins/*/hoards/*/shinies/*";
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final FirebaseTokenVerifier firebaseTokenVerifier;
@@ -69,7 +70,8 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
 
     private boolean requiresAuthentication(HttpServletRequest request) {
         String requestPath = request.getRequestURI().substring(request.getContextPath().length());
-        return pathMatcher.match(REQUIRED_AUTH_PATH_PATTERN, requestPath);
+        return pathMatcher.match(REQUIRED_AUTH_PATH_PATTERN, requestPath)
+                || pathMatcher.match(REQUIRED_AUTH_ITEM_PATH_PATTERN, requestPath);
     }
 
     private boolean hasBearerToken(HttpServletRequest request) {

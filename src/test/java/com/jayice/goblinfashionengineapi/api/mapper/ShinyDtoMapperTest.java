@@ -4,6 +4,7 @@ import com.jayice.goblinfashionengineapi.api.domain.enums.ShinyCategory;
 import com.jayice.goblinfashionengineapi.api.domain.model.Shiny;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyCreateRequestDto;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyResponseDto;
+import com.jayice.goblinfashionengineapi.api.dto.ShinyUpdateRequestDto;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -54,6 +55,24 @@ class ShinyDtoMapperTest {
     }
 
     @Test
+    void mapsUpdateRequestDtoToCanonicalShiny() {
+        ShinyUpdateRequestDto shinyUpdateRequestDto = new ShinyUpdateRequestDto();
+        shinyUpdateRequestDto.setId("item-11");
+        shinyUpdateRequestDto.setName("Updated Boots");
+        shinyUpdateRequestDto.setCount(2);
+        shinyUpdateRequestDto.setCategory(ShinyCategory.SHOES);
+        shinyUpdateRequestDto.setPublicWear(true);
+
+        Shiny result = shinyDtoMapper.toCanonicalForUpdate(shinyUpdateRequestDto);
+
+        assertEquals("item-11", result.getId());
+        assertEquals("Updated Boots", result.getName());
+        assertEquals(2, result.getCount());
+        assertEquals(ShinyCategory.SHOES, result.getCategory());
+        assertTrue(result.isPublicWear());
+    }
+
+    @Test
     void mapsCanonicalShinyListToResponseDtoList() {
         Shiny shiny = Shiny.builder()
                 .id("item-1")
@@ -76,5 +95,6 @@ class ShinyDtoMapperTest {
     void returnsNullForNullShiny() {
         assertNull(shinyDtoMapper.toResponseDto(null));
         assertNull(shinyDtoMapper.toCanonicalForCreate(null));
+        assertNull(shinyDtoMapper.toCanonicalForUpdate(null));
     }
 }

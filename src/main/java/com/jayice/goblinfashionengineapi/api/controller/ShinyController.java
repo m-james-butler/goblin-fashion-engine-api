@@ -4,8 +4,10 @@ import com.jayice.goblinfashionengineapi.api.auth.context.AuthenticatedGoblinReq
 import com.jayice.goblinfashionengineapi.api.auth.model.AuthenticatedGoblin;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyCreateRequestDto;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyResponseDto;
+import com.jayice.goblinfashionengineapi.api.dto.ShinyUpdateRequestDto;
 import com.jayice.goblinfashionengineapi.api.mapper.ShinyDtoMapper;
 import com.jayice.goblinfashionengineapi.api.service.ShinyAlreadyExistsException;
+import com.jayice.goblinfashionengineapi.api.service.ShinyNotFoundException;
 import com.jayice.goblinfashionengineapi.api.service.ShinyService;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +23,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.util.List;
 
@@ -89,6 +93,66 @@ public class ShinyController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, illegalArgumentException.getMessage());
         } catch (ShinyAlreadyExistsException shinyAlreadyExistsException) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, shinyAlreadyExistsException.getMessage());
+        }
+    }
+
+    @PutMapping("/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}")
+    public ShinyResponseDto updateShiny(
+            @PathVariable String goblinId,
+            @PathVariable String hoardId,
+            @PathVariable String shinyId,
+            @Valid @RequestBody ShinyUpdateRequestDto shinyUpdateRequestDto,
+            HttpServletRequest request
+    ) {
+        AuthenticatedGoblin authenticatedGoblin = AuthenticatedGoblinRequestContext.getRequired(request);
+        if (!authenticatedGoblin.goblinId().equals(goblinId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Authenticated goblin does not match path goblinId."
+            );
+        }
+        if (!shinyId.equals(shinyUpdateRequestDto.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Path shinyId must match payload shiny id.");
+        }
+
+        try {
+            return shinyDtoMapper.toResponseDto(
+                    shinyService.updateShiny(
+                            goblinId,
+                            hoardId,
+                            shinyId,
+                            shinyDtoMapper.toCanonicalForUpdate(shinyUpdateRequestDto)
+                    )
+            );
+        } catch (IllegalArgumentException illegalArgumentException) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, illegalArgumentException.getMessage());
+        } catch (ShinyNotFoundException shinyNotFoundException) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, shinyNotFoundException.getMessage());
+        }
+    }
+
+    @DeleteMapping("/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteShiny(
+            @PathVariable String goblinId,
+            @PathVariable String hoardId,
+            @PathVariable String shinyId,
+            HttpServletRequest request
+    ) {
+        AuthenticatedGoblin authenticatedGoblin = AuthenticatedGoblinRequestContext.getRequired(request);
+        if (!authenticatedGoblin.goblinId().equals(goblinId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Authenticated goblin does not match path goblinId."
+            );
+        }
+
+        try {
+            shinyService.deleteShiny(goblinId, hoardId, shinyId);
+        } catch (IllegalArgumentException illegalArgumentException) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, illegalArgumentException.getMessage());
+        } catch (ShinyNotFoundException shinyNotFoundException) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, shinyNotFoundException.getMessage());
         }
     }
 }

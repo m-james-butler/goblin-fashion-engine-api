@@ -3,6 +3,7 @@ package com.jayice.goblinfashionengineapi.api.mapper;
 import com.jayice.goblinfashionengineapi.api.domain.model.Shiny;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyCreateRequestDto;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyResponseDto;
+import com.jayice.goblinfashionengineapi.api.dto.ShinyUpdateRequestDto;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -38,6 +39,37 @@ public class ShinyDtoMapper {
                 .imagePath(shinyCreateRequestDto.getImagePath())
                 .status(shinyCreateRequestDto.getStatus())
                 .notes(shinyCreateRequestDto.getNotes())
+                .build();
+    }
+
+    public Shiny toCanonicalForUpdate(ShinyUpdateRequestDto shinyUpdateRequestDto) {
+        if (shinyUpdateRequestDto == null) {
+            return null;
+        }
+
+        return Shiny.builder()
+                .id(shinyUpdateRequestDto.getId())
+                .name(shinyUpdateRequestDto.getName())
+                .count(shinyUpdateRequestDto.getCount())
+                .category(shinyUpdateRequestDto.getCategory())
+                .subcategory(shinyUpdateRequestDto.getSubcategory())
+                .layer(shinyUpdateRequestDto.getLayer())
+                .contexts(shinyUpdateRequestDto.getContexts())
+                .formality(shinyUpdateRequestDto.getFormality())
+                .attention(shinyUpdateRequestDto.getAttention())
+                .colorPrimary(shinyUpdateRequestDto.getColorPrimary())
+                .colorSecondary(shinyUpdateRequestDto.getColorSecondary())
+                .pattern(shinyUpdateRequestDto.getPattern())
+                .fabric(shinyUpdateRequestDto.getFabric())
+                .fit(shinyUpdateRequestDto.getFit())
+                .warmth(shinyUpdateRequestDto.getWarmth())
+                .officeOk(shinyUpdateRequestDto.isOfficeOk())
+                .publicWear(shinyUpdateRequestDto.isPublicWear())
+                .includeInEngine(shinyUpdateRequestDto.isIncludeInEngine())
+                .engineInclusionPolicy(shinyUpdateRequestDto.getEngineInclusionPolicy())
+                .imagePath(shinyUpdateRequestDto.getImagePath())
+                .status(shinyUpdateRequestDto.getStatus())
+                .notes(shinyUpdateRequestDto.getNotes())
                 .build();
     }
 

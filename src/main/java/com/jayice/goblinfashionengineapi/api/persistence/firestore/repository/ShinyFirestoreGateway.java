@@ -139,6 +139,65 @@ public class ShinyFirestoreGateway {
         }
     }
 
+    public ShinyDocument updateShiny(String goblinId, String hoardId, String shinyId, ShinyDocument shinyDocument) {
+        if (!StringUtils.hasText(goblinId) || !StringUtils.hasText(hoardId) || !StringUtils.hasText(shinyId)) {
+            throw new IllegalArgumentException("goblinId, hoardId, and shinyId are required for Firestore writes.");
+        }
+        if (shinyDocument == null || !StringUtils.hasText(shinyDocument.getId())) {
+            throw new IllegalArgumentException("shiny id is required for update.");
+        }
+        if (!shinyId.equals(shinyDocument.getId())) {
+            throw new IllegalArgumentException("Path shinyId must match payload shiny id.");
+        }
+
+        shinyDocument.setId(shinyId);
+        shinyDocument.setGoblinId(goblinId);
+        shinyDocument.setHoardId(hoardId);
+
+        DocumentReference documentReference = shinyCollection(goblinId, hoardId).document(shinyId);
+        try {
+            DocumentSnapshot existingShiny = documentReference.get().get();
+            if (!existingShiny.exists()) {
+                throw new ShinyDocumentNotFoundException(
+                        "No shiny found for goblinId '" + goblinId + "', hoardId '" + hoardId
+                                + "', shinyId '" + shinyId + "'."
+                );
+            }
+
+            documentReference.set(shinyDocument).get();
+            return shinyDocument;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while updating shiny in Firestore.", exception);
+        } catch (ExecutionException exception) {
+            throw new IllegalStateException("Failed updating shiny in Firestore.", exception);
+        }
+    }
+
+    public void deleteShiny(String goblinId, String hoardId, String shinyId) {
+        if (!StringUtils.hasText(goblinId) || !StringUtils.hasText(hoardId) || !StringUtils.hasText(shinyId)) {
+            throw new IllegalArgumentException("goblinId, hoardId, and shinyId are required for Firestore writes.");
+        }
+
+        DocumentReference documentReference = shinyCollection(goblinId, hoardId).document(shinyId);
+        try {
+            DocumentSnapshot existingShiny = documentReference.get().get();
+            if (!existingShiny.exists()) {
+                throw new ShinyDocumentNotFoundException(
+                        "No shiny found for goblinId '" + goblinId + "', hoardId '" + hoardId
+                                + "', shinyId '" + shinyId + "'."
+                );
+            }
+
+            documentReference.delete().get();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while deleting shiny in Firestore.", exception);
+        } catch (ExecutionException exception) {
+            throw new IllegalStateException("Failed deleting shiny in Firestore.", exception);
+        }
+    }
+
     private CollectionReference shinyCollection(String goblinId, String hoardId) {
         return firestore.collection(GOBLINS_COLLECTION)
                 .document(goblinId)
