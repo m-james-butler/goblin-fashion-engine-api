@@ -1,8 +1,11 @@
 package com.jayice.goblinfashionengineapi.api.mapper;
 
 import com.jayice.goblinfashionengineapi.api.domain.enums.ShinyCategory;
+import com.jayice.goblinfashionengineapi.api.domain.enums.ShinyStatus;
 import com.jayice.goblinfashionengineapi.api.domain.model.Shiny;
+import com.jayice.goblinfashionengineapi.api.domain.model.ShinyPatch;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyCreateRequestDto;
+import com.jayice.goblinfashionengineapi.api.dto.ShinyPatchRequestDto;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyResponseDto;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyUpdateRequestDto;
 import org.junit.jupiter.api.Test;
@@ -73,6 +76,20 @@ class ShinyDtoMapperTest {
     }
 
     @Test
+    void mapsPatchRequestDtoToCanonicalPatch() {
+        ShinyPatchRequestDto patchRequestDto = new ShinyPatchRequestDto();
+        patchRequestDto.setNotes("new notes");
+        patchRequestDto.setStatus(ShinyStatus.OWNED);
+        patchRequestDto.setIncludeInEngine(Boolean.TRUE);
+
+        ShinyPatch patch = shinyDtoMapper.toCanonicalPatch(patchRequestDto);
+
+        assertEquals("new notes", patch.getNotes());
+        assertEquals(ShinyStatus.OWNED, patch.getStatus());
+        assertEquals(Boolean.TRUE, patch.getIncludeInEngine());
+    }
+
+    @Test
     void mapsCanonicalShinyListToResponseDtoList() {
         Shiny shiny = Shiny.builder()
                 .id("item-1")
@@ -96,5 +113,6 @@ class ShinyDtoMapperTest {
         assertNull(shinyDtoMapper.toResponseDto(null));
         assertNull(shinyDtoMapper.toCanonicalForCreate(null));
         assertNull(shinyDtoMapper.toCanonicalForUpdate(null));
+        assertNull(shinyDtoMapper.toCanonicalPatch(null));
     }
 }

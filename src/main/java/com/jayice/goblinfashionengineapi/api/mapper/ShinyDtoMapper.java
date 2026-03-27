@@ -1,7 +1,9 @@
 package com.jayice.goblinfashionengineapi.api.mapper;
 
 import com.jayice.goblinfashionengineapi.api.domain.model.Shiny;
+import com.jayice.goblinfashionengineapi.api.domain.model.ShinyPatch;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyCreateRequestDto;
+import com.jayice.goblinfashionengineapi.api.dto.ShinyPatchRequestDto;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyResponseDto;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyUpdateRequestDto;
 import org.springframework.stereotype.Component;
@@ -70,6 +72,20 @@ public class ShinyDtoMapper {
                 .imagePath(shinyUpdateRequestDto.getImagePath())
                 .status(shinyUpdateRequestDto.getStatus())
                 .notes(shinyUpdateRequestDto.getNotes())
+                .build();
+    }
+
+    public ShinyPatch toCanonicalPatch(ShinyPatchRequestDto shinyPatchRequestDto) {
+        if (shinyPatchRequestDto == null) {
+            return null;
+        }
+
+        return ShinyPatch.builder()
+                .status(shinyPatchRequestDto.getStatus())
+                .imagePath(shinyPatchRequestDto.getImagePath())
+                .notes(shinyPatchRequestDto.getNotes())
+                .includeInEngine(shinyPatchRequestDto.getIncludeInEngine())
+                .attentionLevel(shinyPatchRequestDto.getAttentionLevel())
                 .build();
     }
 

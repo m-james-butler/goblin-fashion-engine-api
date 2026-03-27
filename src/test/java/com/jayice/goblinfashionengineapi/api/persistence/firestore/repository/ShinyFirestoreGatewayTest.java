@@ -249,4 +249,70 @@ class ShinyFirestoreGatewayTest {
                 () -> gateway.deleteShiny("GBL-001", "HRD-001", "SH-001")
         );
     }
+
+    @Test
+    void getShinyReadsFromCorrectFirestorePath() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference goblinsCollection = mock(CollectionReference.class);
+        DocumentReference goblinDocument = mock(DocumentReference.class);
+        CollectionReference hoardsCollection = mock(CollectionReference.class);
+        DocumentReference hoardDocument = mock(DocumentReference.class);
+        CollectionReference shiniesCollection = mock(CollectionReference.class);
+        DocumentReference shinyDocumentReference = mock(DocumentReference.class);
+        DocumentSnapshot documentSnapshot = mock(DocumentSnapshot.class);
+
+        ShinyDocument firestoreDocument = ShinyDocument.builder()
+                .id("SH-001")
+                .goblinId("GBL-001")
+                .hoardId("HRD-001")
+                .name("Battle Jacket")
+                .count(1)
+                .build();
+
+        when(firestore.collection("goblins")).thenReturn(goblinsCollection);
+        when(goblinsCollection.document("GBL-001")).thenReturn(goblinDocument);
+        when(goblinDocument.collection("hoards")).thenReturn(hoardsCollection);
+        when(hoardsCollection.document("HRD-001")).thenReturn(hoardDocument);
+        when(hoardDocument.collection("shinies")).thenReturn(shiniesCollection);
+        when(shiniesCollection.document("SH-001")).thenReturn(shinyDocumentReference);
+        when(shinyDocumentReference.get()).thenReturn(ApiFutures.immediateFuture(documentSnapshot));
+        when(documentSnapshot.exists()).thenReturn(true);
+        when(documentSnapshot.toObject(ShinyDocument.class)).thenReturn(firestoreDocument);
+
+        ShinyFirestoreGateway gateway = new ShinyFirestoreGateway(firestore);
+
+        ShinyDocument found = gateway.getShiny("GBL-001", "HRD-001", "SH-001");
+
+        assertEquals("SH-001", found.getId());
+        assertEquals("GBL-001", found.getGoblinId());
+        assertEquals("HRD-001", found.getHoardId());
+    }
+
+    @Test
+    void getShinyThrowsNotFoundWhenDocumentDoesNotExist() throws Exception {
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference goblinsCollection = mock(CollectionReference.class);
+        DocumentReference goblinDocument = mock(DocumentReference.class);
+        CollectionReference hoardsCollection = mock(CollectionReference.class);
+        DocumentReference hoardDocument = mock(DocumentReference.class);
+        CollectionReference shiniesCollection = mock(CollectionReference.class);
+        DocumentReference shinyDocumentReference = mock(DocumentReference.class);
+        DocumentSnapshot documentSnapshot = mock(DocumentSnapshot.class);
+
+        when(firestore.collection("goblins")).thenReturn(goblinsCollection);
+        when(goblinsCollection.document("GBL-001")).thenReturn(goblinDocument);
+        when(goblinDocument.collection("hoards")).thenReturn(hoardsCollection);
+        when(hoardsCollection.document("HRD-001")).thenReturn(hoardDocument);
+        when(hoardDocument.collection("shinies")).thenReturn(shiniesCollection);
+        when(shiniesCollection.document("SH-001")).thenReturn(shinyDocumentReference);
+        when(shinyDocumentReference.get()).thenReturn(ApiFutures.immediateFuture(documentSnapshot));
+        when(documentSnapshot.exists()).thenReturn(false);
+
+        ShinyFirestoreGateway gateway = new ShinyFirestoreGateway(firestore);
+
+        assertThrows(
+                ShinyDocumentNotFoundException.class,
+                () -> gateway.getShiny("GBL-001", "HRD-001", "SH-001")
+        );
+    }
 }

@@ -139,6 +139,29 @@ public class ShinyFirestoreGateway {
         }
     }
 
+    public ShinyDocument getShiny(String goblinId, String hoardId, String shinyId) {
+        if (!StringUtils.hasText(goblinId) || !StringUtils.hasText(hoardId) || !StringUtils.hasText(shinyId)) {
+            throw new IllegalArgumentException("goblinId, hoardId, and shinyId are required for Firestore reads.");
+        }
+
+        DocumentReference documentReference = shinyCollection(goblinId, hoardId).document(shinyId);
+        try {
+            DocumentSnapshot snapshot = documentReference.get().get();
+            if (!snapshot.exists()) {
+                throw new ShinyDocumentNotFoundException(
+                        "No shiny found for goblinId '" + goblinId + "', hoardId '" + hoardId
+                                + "', shinyId '" + shinyId + "'."
+                );
+            }
+            return toShinyDocument(snapshot, goblinId, hoardId);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while reading shiny in Firestore.", exception);
+        } catch (ExecutionException exception) {
+            throw new IllegalStateException("Failed reading shiny in Firestore.", exception);
+        }
+    }
+
     public ShinyDocument updateShiny(String goblinId, String hoardId, String shinyId, ShinyDocument shinyDocument) {
         if (!StringUtils.hasText(goblinId) || !StringUtils.hasText(hoardId) || !StringUtils.hasText(shinyId)) {
             throw new IllegalArgumentException("goblinId, hoardId, and shinyId are required for Firestore writes.");

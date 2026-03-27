@@ -2,8 +2,10 @@ package com.jayice.goblinfashionengineapi.api.service;
 
 import com.jayice.goblinfashionengineapi.api.domain.enums.ShinyCategory;
 import com.jayice.goblinfashionengineapi.api.domain.model.Shiny;
+import com.jayice.goblinfashionengineapi.api.domain.model.ShinyPatch;
 import com.jayice.goblinfashionengineapi.api.persistence.firestore.mapper.ShinyFirestoreMapper;
 import com.jayice.goblinfashionengineapi.api.persistence.firestore.model.ShinyDocument;
+import com.jayice.goblinfashionengineapi.api.persistence.firestore.repository.ShinyDocumentNotFoundException;
 import com.jayice.goblinfashionengineapi.api.persistence.firestore.repository.ShinyFirestoreGateway;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -11,6 +13,7 @@ import org.mockito.Mockito;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -137,5 +140,76 @@ class ShinyServiceTest {
         shinyService.deleteShiny("GBL-001", "HRD-001", "SH-001");
 
         verify(gateway).deleteShiny("GBL-001", "HRD-001", "SH-001");
+    }
+
+    @Test
+    void patchShinyMergesOnlyProvidedNonNullFields() {
+        ShinyDocument existingDocument = ShinyDocument.builder()
+                .id("SH-001")
+                .goblinId("GBL-001")
+                .hoardId("HRD-001")
+                .name("Battle Jacket")
+                .count(1)
+                .notes("old notes")
+                .imagePath("old.png")
+                .includeInEngine(false)
+                .build();
+        ShinyDocument updatedDocument = ShinyDocument.builder()
+                .id("SH-001")
+                .goblinId("GBL-001")
+                .hoardId("HRD-001")
+                .name("Battle Jacket")
+                .count(1)
+                .notes("new notes")
+                .imagePath("old.png")
+                .includeInEngine(true)
+                .build();
+
+        ShinyPatch shinyPatch = ShinyPatch.builder()
+                .notes("new notes")
+                .includeInEngine(true)
+                .imagePath(null)
+                .build();
+
+        ShinyFirestoreGateway gateway = Mockito.mock(ShinyFirestoreGateway.class);
+        when(gateway.getShiny("GBL-001", "HRD-001", "SH-001")).thenReturn(existingDocument);
+        when(gateway.updateShiny(eq("GBL-001"), eq("HRD-001"), eq("SH-001"), any(ShinyDocument.class)))
+                .thenReturn(updatedDocument);
+
+        ShinyService shinyService = new ShinyService(gateway, new ShinyFirestoreMapper());
+
+        Shiny patched = shinyService.patchShiny("GBL-001", "HRD-001", "SH-001", shinyPatch);
+
+        assertEquals("new notes", patched.getNotes());
+        assertEquals("old.png", patched.getImagePath());
+        assertEquals(true, patched.isIncludeInEngine());
+    }
+
+    @Test
+    void patchShinyThrowsNotFoundWhenTargetShinyDoesNotExist() {
+        ShinyPatch shinyPatch = ShinyPatch.builder().notes("new notes").build();
+
+        ShinyFirestoreGateway gateway = Mockito.mock(ShinyFirestoreGateway.class);
+        when(gateway.getShiny("GBL-001", "HRD-001", "SH-001"))
+                .thenThrow(new ShinyDocumentNotFoundException("not found"));
+
+        ShinyService shinyService = new ShinyService(gateway, new ShinyFirestoreMapper());
+
+        assertThrows(
+                ShinyNotFoundException.class,
+                () -> shinyService.patchShiny("GBL-001", "HRD-001", "SH-001", shinyPatch)
+        );
+    }
+
+    @Test
+    void patchShinyRejectsEmptyPatchPayload() {
+        ShinyPatch shinyPatch = ShinyPatch.builder().build();
+        ShinyFirestoreGateway gateway = Mockito.mock(ShinyFirestoreGateway.class);
+        ShinyService shinyService = new ShinyService(gateway, new ShinyFirestoreMapper());
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> shinyService.patchShiny("GBL-001", "HRD-001", "SH-001", shinyPatch)
+        );
     }
 }

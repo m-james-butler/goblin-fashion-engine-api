@@ -3,6 +3,7 @@ package com.jayice.goblinfashionengineapi.api.controller;
 import com.jayice.goblinfashionengineapi.api.auth.context.AuthenticatedGoblinRequestContext;
 import com.jayice.goblinfashionengineapi.api.auth.model.AuthenticatedGoblin;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyCreateRequestDto;
+import com.jayice.goblinfashionengineapi.api.dto.ShinyPatchRequestDto;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyResponseDto;
 import com.jayice.goblinfashionengineapi.api.dto.ShinyUpdateRequestDto;
 import com.jayice.goblinfashionengineapi.api.mapper.ShinyDtoMapper;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 
 import java.util.List;
 
@@ -149,6 +151,38 @@ public class ShinyController {
 
         try {
             shinyService.deleteShiny(goblinId, hoardId, shinyId);
+        } catch (IllegalArgumentException illegalArgumentException) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, illegalArgumentException.getMessage());
+        } catch (ShinyNotFoundException shinyNotFoundException) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, shinyNotFoundException.getMessage());
+        }
+    }
+
+    @PatchMapping("/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}")
+    public ShinyResponseDto patchShiny(
+            @PathVariable String goblinId,
+            @PathVariable String hoardId,
+            @PathVariable String shinyId,
+            @RequestBody ShinyPatchRequestDto shinyPatchRequestDto,
+            HttpServletRequest request
+    ) {
+        AuthenticatedGoblin authenticatedGoblin = AuthenticatedGoblinRequestContext.getRequired(request);
+        if (!authenticatedGoblin.goblinId().equals(goblinId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Authenticated goblin does not match path goblinId."
+            );
+        }
+
+        try {
+            return shinyDtoMapper.toResponseDto(
+                    shinyService.patchShiny(
+                            goblinId,
+                            hoardId,
+                            shinyId,
+                            shinyDtoMapper.toCanonicalPatch(shinyPatchRequestDto)
+                    )
+            );
         } catch (IllegalArgumentException illegalArgumentException) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, illegalArgumentException.getMessage());
         } catch (ShinyNotFoundException shinyNotFoundException) {
