@@ -1,76 +1,41 @@
 # Goblin Fashion Engine API - Backend Architecture
 
+Last verified: March 28, 2026
+
 ## Overview
 
-This document reflects the backend architecture as of March 27, 2026.
+`goblin-fashion-engine-api` is a Spring Boot backend using Firestore for shiny persistence and Firebase Authentication for tenancy/authentication.
 
-The backend is now designed around Firestore as the primary persistence path for shiny CRUD operations, with Firebase Authentication as the target auth system and Cloud Run as the deployment target.
+Primary design goal:
+- enforce goblin ownership from verified Firebase identity
+- keep canonical domain internal
+- expose DTOs only at API boundary
 
-Legacy JSON inventory is retained only for optional bootstrap import into Firestore.
+## Runtime Request Flow
 
-## Deployment and Platform
+Primary endpoint shape:
+- `/api/goblins/{goblinId}/hoards/{hoardId}/shinies`
+- `/api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}`
 
-- Google Cloud Platform (GCP)
-- Cloud Run deployment target
-- Cloud Build + Artifact Registry for build and image pipeline
-- Firestore as primary database
-- Firebase Authentication for user auth
-- Cloud Storage reserved for future image storage
+Execution flow:
 
-## Runtime API Paths (Primary)
+`ApiRequestLoggingFilter -> FirebaseAuthenticationFilter -> ShinyController -> ShinyService -> ShinyFirestoreGateway -> Firestore -> ShinyFirestoreMapper -> domain Shiny -> ShinyDtoMapper -> response DTO`
 
-```text
-GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies
-    -> FirebaseAuthenticationFilter (Authorization: Bearer <id-token>)
-    -> FirebaseTokenVerifier (FirebaseAuth.verifyIdToken)
-    -> AuthenticatedGoblin(uid)
-    -> ShinyController
-    -> ownership check: uid == path goblinId
-    -> ShinyService
-    -> ShinyFirestoreGateway
-    -> Firestore path: goblins/{goblinId}/hoards/{hoardId}/shinies
-    -> List<ShinyDocument>
-    -> ShinyFirestoreMapper
-    -> List<Shiny> (canonical domain)
-    -> ShinyDtoMapper
-    -> List<ShinyResponseDto>
-```
+## Authentication and Tenancy
 
-```text
-POST /api/goblins/{goblinId}/hoards/{hoardId}/shinies
-GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
-PUT /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
-PATCH /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
-DELETE /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
-    -> FirebaseAuthenticationFilter (Authorization: Bearer <id-token>)
-    -> FirebaseTokenVerifier (FirebaseAuth.verifyIdToken)
-    -> AuthenticatedGoblin(uid)
-    -> ShinyController
-    -> ownership check: uid == path goblinId
-    -> ShinyService
-    -> ShinyFirestoreGateway
-    -> Firestore path: goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
-```
+- Bearer token source: `Authorization: Bearer <firebase-id-token>`
+- Verification: `FirebaseTokenVerifier` (Firebase Admin SDK)
+- Request context principal: `AuthenticatedGoblin`
+- Controller ownership enforcement: path `goblinId` must equal authenticated UID
 
-This is the canonical API/data boundary flow:
+Auth responses on goblin-aware routes:
+- missing token -> `401`
+- invalid token -> `401`
+- UID/path mismatch -> `403`
 
-```text
-Filter -> AuthenticatedGoblin -> Controller -> Service -> Firestore gateway -> ShinyDocument -> ShinyFirestoreMapper -> Shiny -> ShinyDtoMapper -> ShinyResponseDto
-```
+## Endpoint Inventory
 
-### Transitional Endpoint Support
-
-A transitional endpoint still exists:
-
-- `GET /api/hoards/{hoardId}/shinies`
-
-For authenticated requests, it resolves goblin ownership from Firebase UID first.
-`app.default-goblin-id` remains only as an unauthenticated fallback during transition.
-
-## Endpoint Strategy (Now vs Next)
-
-Current primary endpoints:
-
+Primary CRUD endpoints:
 - `GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies`
 - `GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}`
 - `POST /api/goblins/{goblinId}/hoards/{hoardId}/shinies`
@@ -78,145 +43,67 @@ Current primary endpoints:
 - `PATCH /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}`
 - `DELETE /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}`
 
-Current compatibility endpoint:
+Transitional compatibility endpoint (still present):
+- `GET /api/hoards/{hoardId}/shinies`
 
-- `GET /api/hoards/{hoardId}/shinies` (transitional only)
+## Data and Mapping Boundaries
 
-Current first-stage Firebase enforcement:
+Internal canonical model:
+- `api.domain.model.Shiny`
 
-- keep goblin ownership authoritative
-- verify `Authorization: Bearer <firebase-id-token>` with Firebase Admin SDK
-- derive authoritative `goblinId` from Firebase UID
-- enforce on goblin-aware shiny routes (`GET list/GET item/POST/PUT/PATCH/DELETE`):
-- missing token -> `401`
-- invalid token -> `401`
-- token uid mismatch with path goblinId -> `403`
-- uid/path match -> continue
-- create duplicate id -> `409` (create only)
-- item read/patch/update/delete missing shiny -> `404` (item routes)
-- after frontend migration, remove transitional compatibility endpoint
+Persistence model:
+- `api.persistence.firestore.model.ShinyDocument`
 
-This keeps ownership constraints explicit while enabling a clean move to auth-derived tenancy.
+External API model:
+- `api.dto.ShinyResponseDto` and request DTOs
 
-### PATCH Semantics (v1)
+Mapping layers:
+- `ShinyFirestoreMapper`: Firestore document <-> canonical domain
+- `ShinyDtoMapper`: canonical domain <-> API DTO
 
-- endpoint: `PATCH /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}`
-- typed DTO (`ShinyPatchRequestDto`), not JSON Patch / JSON Merge Patch
-- omitted field -> unchanged
-- explicit `null` -> unchanged
-- non-null provided field -> updated
-- explicit clearing is not supported in v1
-- patch merge is owned by `ShinyService` (not controller/gateway)
-- service loads existing shiny, merges patch into canonical domain object, validates merged result, and writes full merged shiny back through gateway
+## Firestore Structure
 
-## Firestore Data Model
+Current ownership-first pathing:
 
-Current shiny reads use nested ownership-first pathing:
+`goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}`
 
-```text
-goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
-```
+This keeps tenancy explicit and avoids hoard-only global addressing.
 
-Planned hierarchy remains:
+## Logging and Observability
 
-```text
-goblins/{goblinId}
-goblins/{goblinId}/hoards/{hoardId}
-goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
-goblins/{goblinId}/clutters/{clutterId}
-goblins/{goblinId}/quirks/{quirkId}
-```
+Server logging is structured around request correlation and privacy-safe fields:
 
-Design intent in code:
+- Request lifecycle filter: `ApiRequestLoggingFilter`
+  - generates/propagates `X-Request-Id`
+  - adds request id to MDC
+  - logs API method/path/status/duration
+- Auth filter logs: `FirebaseAuthenticationFilter`
+  - logs auth outcomes with sanitized path and masked identifiers
+  - never logs raw token value
+- Service logs: `ShinyService`
+  - logs operation lifecycle (fetch/create/update/patch/delete)
+  - logs masked identifiers only
+- Sanitization helper: `LoggingSanitizer`
 
-- goblin ownership is first-class
-- persistence is not modeled around hoard id alone
-- canonical domain model remains internal
-- DTO model remains external API boundary
+Logging config in `application.properties`:
+- `logging.pattern.console` includes request id (`%X{requestId}`)
+- app logging level defaults and auth-filter debug override are configured
 
-## Firebase / Firestore Configuration
+## Legacy Inventory Role
 
-Firestore initialization is under:
-
-- `api.persistence.firestore.config.FirebaseConfig`
-- `api.persistence.firestore.config.FirebaseProperties`
-
-Credential strategy:
-
-- Cloud Run: Application Default Credentials (ADC)
-- Local: ADC via `GOOGLE_APPLICATION_CREDENTIALS` or explicit `firebase.credentials-path`
-
-## Legacy JSON Role (Bootstrap Only)
-
-Legacy components are still present:
-
+Legacy JSON inventory remains bootstrap-only support, not primary runtime data source:
 - `LegacyInventoryService`
-- `legacy.mapper.ShinyMapper`
-
-They are no longer the primary read path.
-
-Optional bootstrap importer:
-
 - `LegacyInventoryFirestoreBootstrapImporter`
 
-Importer behavior:
-
-- opt-in via `app.bootstrap.legacy-inventory.enabled=true`
-- can be restricted to empty target collection (`only-if-empty=true`)
-- mapping chain: `LegacyShiny -> Shiny -> ShinyDocument`
-- writes to `goblins/{goblinId}/hoards/{hoardId}/shinies`
-
-## Package Boundaries
-
-```text
-api
-|-- auth
-|   |-- context
-|   |-- filter
-|   |-- model
-|   `-- service
-|-- controller
-|-- dto
-|-- domain
-|-- mapper
-|-- legacy
-|   |-- mapper
-|   `-- model
-|-- persistence
-|   `-- firestore
-|       |-- bootstrap
-|       |-- config
-|       |-- mapper
-|       |-- model
-|       `-- repository
-`-- service
-```
-
-## Authentication Direction
-
-Authentication is intentionally staged:
-
-- frontend will send Firebase ID token in `Authorization: Bearer <token>`
-- backend verifies Firebase ID token in a lightweight `OncePerRequestFilter`
-- verified identity is stored as internal principal model (`AuthenticatedGoblin`) in request context
-- full role/authority and method-level security are intentionally deferred
-- token revocation checks are not enforced yet, but verifier flow is structured to add `checkRevoked=true` later
+Bootstrapping writes into canonical Firestore tenancy path and is controlled by app properties.
 
 ## Testing Focus
 
-Current tests cover:
+Current automated tests cover:
+- auth filter behavior (`401`/`403`/success)
+- shiny controller CRUD and patch scenarios
+- service behavior with mocked persistence
+- mapper behavior
+- Firebase token verifier behavior
 
-- Firebase token verification service behavior (`uid` mapping and invalid-token handling)
-- controller auth responses for `401`, `403`, and success paths on goblin-aware shiny endpoints
-- controller single-item read responses (`401`, `403`, `404`, `200`)
-- ownership mismatch blocking before service execution
-- service behavior using mocked Firestore gateway
-- service single-item read delegation and not-found propagation
-- Firestore mapper (`ShinyDocument <-> Shiny`) behavior
-- controller DTO request/response mapping for create and update
-- controller patch response mapping and patch status handling
-- create behavior (`201`, `400`, `409`)
-- update behavior (`200`, `400`, `404`)
-- patch behavior (`200`, `400`, `404`)
-- delete behavior (`204`, `404`)
-- legacy mapper/service tests retained for bootstrap path safety
+Note: local test runs on Java 24 may require `-Djacoco.skip=true` due JaCoCo instrumentation limitations in this environment.
