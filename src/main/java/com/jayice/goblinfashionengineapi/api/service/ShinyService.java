@@ -2,11 +2,14 @@ package com.jayice.goblinfashionengineapi.api.service;
 
 import com.jayice.goblinfashionengineapi.api.domain.model.Shiny;
 import com.jayice.goblinfashionengineapi.api.domain.model.ShinyPatch;
+import com.jayice.goblinfashionengineapi.api.logging.LoggingSanitizer;
 import com.jayice.goblinfashionengineapi.api.persistence.firestore.mapper.ShinyFirestoreMapper;
 import com.jayice.goblinfashionengineapi.api.persistence.firestore.model.ShinyDocument;
 import com.jayice.goblinfashionengineapi.api.persistence.firestore.repository.DuplicateShinyException;
 import com.jayice.goblinfashionengineapi.api.persistence.firestore.repository.ShinyDocumentNotFoundException;
 import com.jayice.goblinfashionengineapi.api.persistence.firestore.repository.ShinyFirestoreGateway;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -14,6 +17,8 @@ import java.util.List;
 
 @Service
 public class ShinyService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ShinyService.class);
+
     private final ShinyFirestoreGateway shinyFirestoreGateway;
     private final ShinyFirestoreMapper shinyFirestoreMapper;
 
@@ -23,8 +28,19 @@ public class ShinyService {
     }
 
     public List<Shiny> getShiniesByGoblinIdAndHoardId(String goblinId, String hoardId) {
+        LOGGER.info("Fetching shinies: goblinId={}, hoardId={}",
+                LoggingSanitizer.maskIdentifier(goblinId),
+                LoggingSanitizer.maskIdentifier(hoardId));
+
         List<ShinyDocument> shinyDocuments = shinyFirestoreGateway.findByGoblinIdAndHoardId(goblinId, hoardId);
-        return shinyFirestoreMapper.toCanonicalList(shinyDocuments);
+        List<Shiny> mappedShinies = shinyFirestoreMapper.toCanonicalList(shinyDocuments);
+
+        LOGGER.info("Fetched shinies: goblinId={}, hoardId={}, count={}",
+                LoggingSanitizer.maskIdentifier(goblinId),
+                LoggingSanitizer.maskIdentifier(hoardId),
+                mappedShinies.size());
+
+        return mappedShinies;
     }
 
     public Shiny getShiny(String goblinId, String hoardId, String shinyId) {
@@ -32,10 +48,19 @@ public class ShinyService {
             throw new IllegalArgumentException("goblinId, hoardId, and shinyId are required.");
         }
 
+        LOGGER.info("Fetching shiny: goblinId={}, hoardId={}, shinyId={}",
+                LoggingSanitizer.maskIdentifier(goblinId),
+                LoggingSanitizer.maskIdentifier(hoardId),
+                LoggingSanitizer.maskIdentifier(shinyId));
+
         try {
             ShinyDocument shinyDocument = shinyFirestoreGateway.getShiny(goblinId, hoardId, shinyId);
             return shinyFirestoreMapper.toCanonical(shinyDocument);
         } catch (ShinyDocumentNotFoundException shinyDocumentNotFoundException) {
+            LOGGER.warn("Shiny not found: goblinId={}, hoardId={}, shinyId={}",
+                    LoggingSanitizer.maskIdentifier(goblinId),
+                    LoggingSanitizer.maskIdentifier(hoardId),
+                    LoggingSanitizer.maskIdentifier(shinyId));
             throw new ShinyNotFoundException(
                     "Shiny not found for this goblin, hoard, and shiny id.",
                     shinyDocumentNotFoundException
@@ -51,11 +76,24 @@ public class ShinyService {
             throw new IllegalArgumentException("Shiny create payload is required.");
         }
 
+        LOGGER.info("Creating shiny: goblinId={}, hoardId={}, shinyId={}",
+                LoggingSanitizer.maskIdentifier(goblinId),
+                LoggingSanitizer.maskIdentifier(hoardId),
+                LoggingSanitizer.maskIdentifier(shiny.getId()));
+
         ShinyDocument shinyDocument = shinyFirestoreMapper.toDocument(shiny);
         try {
             ShinyDocument createdShiny = shinyFirestoreGateway.createShiny(goblinId, hoardId, shinyDocument);
+            LOGGER.info("Created shiny: goblinId={}, hoardId={}, shinyId={}",
+                    LoggingSanitizer.maskIdentifier(goblinId),
+                    LoggingSanitizer.maskIdentifier(hoardId),
+                    LoggingSanitizer.maskIdentifier(shiny.getId()));
             return shinyFirestoreMapper.toCanonical(createdShiny);
         } catch (DuplicateShinyException duplicateShinyException) {
+            LOGGER.warn("Duplicate shiny create attempt: goblinId={}, hoardId={}, shinyId={}",
+                    LoggingSanitizer.maskIdentifier(goblinId),
+                    LoggingSanitizer.maskIdentifier(hoardId),
+                    LoggingSanitizer.maskIdentifier(shiny.getId()));
             throw new ShinyAlreadyExistsException(
                     "A shiny with the same id already exists for this goblin and hoard.",
                     duplicateShinyException
@@ -71,11 +109,24 @@ public class ShinyService {
             throw new IllegalArgumentException("Shiny update payload is required.");
         }
 
+        LOGGER.info("Updating shiny: goblinId={}, hoardId={}, shinyId={}",
+                LoggingSanitizer.maskIdentifier(goblinId),
+                LoggingSanitizer.maskIdentifier(hoardId),
+                LoggingSanitizer.maskIdentifier(shinyId));
+
         ShinyDocument shinyDocument = shinyFirestoreMapper.toDocument(shiny);
         try {
             ShinyDocument updatedShiny = shinyFirestoreGateway.updateShiny(goblinId, hoardId, shinyId, shinyDocument);
+            LOGGER.info("Updated shiny: goblinId={}, hoardId={}, shinyId={}",
+                    LoggingSanitizer.maskIdentifier(goblinId),
+                    LoggingSanitizer.maskIdentifier(hoardId),
+                    LoggingSanitizer.maskIdentifier(shinyId));
             return shinyFirestoreMapper.toCanonical(updatedShiny);
         } catch (ShinyDocumentNotFoundException shinyDocumentNotFoundException) {
+            LOGGER.warn("Shiny update target not found: goblinId={}, hoardId={}, shinyId={}",
+                    LoggingSanitizer.maskIdentifier(goblinId),
+                    LoggingSanitizer.maskIdentifier(hoardId),
+                    LoggingSanitizer.maskIdentifier(shinyId));
             throw new ShinyNotFoundException(
                     "Shiny not found for this goblin, hoard, and shiny id.",
                     shinyDocumentNotFoundException
@@ -88,9 +139,22 @@ public class ShinyService {
             throw new IllegalArgumentException("goblinId, hoardId, and shinyId are required.");
         }
 
+        LOGGER.info("Deleting shiny: goblinId={}, hoardId={}, shinyId={}",
+                LoggingSanitizer.maskIdentifier(goblinId),
+                LoggingSanitizer.maskIdentifier(hoardId),
+                LoggingSanitizer.maskIdentifier(shinyId));
+
         try {
             shinyFirestoreGateway.deleteShiny(goblinId, hoardId, shinyId);
+            LOGGER.info("Deleted shiny: goblinId={}, hoardId={}, shinyId={}",
+                    LoggingSanitizer.maskIdentifier(goblinId),
+                    LoggingSanitizer.maskIdentifier(hoardId),
+                    LoggingSanitizer.maskIdentifier(shinyId));
         } catch (ShinyDocumentNotFoundException shinyDocumentNotFoundException) {
+            LOGGER.warn("Shiny delete target not found: goblinId={}, hoardId={}, shinyId={}",
+                    LoggingSanitizer.maskIdentifier(goblinId),
+                    LoggingSanitizer.maskIdentifier(hoardId),
+                    LoggingSanitizer.maskIdentifier(shinyId));
             throw new ShinyNotFoundException(
                     "Shiny not found for this goblin, hoard, and shiny id.",
                     shinyDocumentNotFoundException
@@ -113,6 +177,11 @@ public class ShinyService {
             throw new IllegalArgumentException("At least one patch field must be provided.");
         }
 
+        LOGGER.info("Patching shiny: goblinId={}, hoardId={}, shinyId={}",
+                LoggingSanitizer.maskIdentifier(goblinId),
+                LoggingSanitizer.maskIdentifier(hoardId),
+                LoggingSanitizer.maskIdentifier(shinyId));
+
         try {
             ShinyDocument existingDocument = shinyFirestoreGateway.getShiny(goblinId, hoardId, shinyId);
             Shiny existingShiny = shinyFirestoreMapper.toCanonical(existingDocument);
@@ -124,8 +193,16 @@ public class ShinyService {
                     shinyId,
                     shinyFirestoreMapper.toDocument(mergedShiny)
             );
+            LOGGER.info("Patched shiny: goblinId={}, hoardId={}, shinyId={}",
+                    LoggingSanitizer.maskIdentifier(goblinId),
+                    LoggingSanitizer.maskIdentifier(hoardId),
+                    LoggingSanitizer.maskIdentifier(shinyId));
             return shinyFirestoreMapper.toCanonical(updatedShiny);
         } catch (ShinyDocumentNotFoundException shinyDocumentNotFoundException) {
+            LOGGER.warn("Shiny patch target not found: goblinId={}, hoardId={}, shinyId={}",
+                    LoggingSanitizer.maskIdentifier(goblinId),
+                    LoggingSanitizer.maskIdentifier(hoardId),
+                    LoggingSanitizer.maskIdentifier(shinyId));
             throw new ShinyNotFoundException(
                     "Shiny not found for this goblin, hoard, and shiny id.",
                     shinyDocumentNotFoundException

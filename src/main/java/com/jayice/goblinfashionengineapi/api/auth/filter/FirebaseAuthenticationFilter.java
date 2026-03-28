@@ -4,10 +4,14 @@ import com.jayice.goblinfashionengineapi.api.auth.context.AuthenticatedGoblinReq
 import com.jayice.goblinfashionengineapi.api.auth.model.AuthenticatedGoblin;
 import com.jayice.goblinfashionengineapi.api.auth.service.FirebaseTokenVerifier;
 import com.jayice.goblinfashionengineapi.api.auth.service.InvalidFirebaseTokenException;
+import com.jayice.goblinfashionengineapi.api.logging.ApiRequestLoggingFilter;
+import com.jayice.goblinfashionengineapi.api.logging.LoggingSanitizer;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
@@ -21,6 +25,8 @@ import java.util.Optional;
  */
 @Component
 public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
+    private static final Logger LOGGER = LoggerFactory.getLogger(FirebaseAuthenticationFilter.class);
+
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String REQUIRED_AUTH_PATH_PATTERN = "/api/goblins/*/hoards/*/shinies";
@@ -49,9 +55,15 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
+        String requestId = resolveRequestId(request);
+        String sanitizedPath = LoggingSanitizer.sanitizePath(request.getRequestURI());
         Optional<String> bearerToken = extractBearerToken(request);
         if (bearerToken.isEmpty()) {
             if (requiresAuthentication(request)) {
+                LOGGER.warn("Missing bearer token: requestId={}, method={}, path={}",
+                        requestId,
+                        request.getMethod(),
+                        sanitizedPath);
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing bearer token.");
                 return;
             }
@@ -62,8 +74,17 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
         try {
             AuthenticatedGoblin authenticatedGoblin = firebaseTokenVerifier.verify(bearerToken.get());
             AuthenticatedGoblinRequestContext.set(request, authenticatedGoblin);
+            LOGGER.debug("Firebase token verified: requestId={}, method={}, path={}, goblinId={}",
+                    requestId,
+                    request.getMethod(),
+                    sanitizedPath,
+                    LoggingSanitizer.maskIdentifier(authenticatedGoblin.goblinId()));
             filterChain.doFilter(request, response);
         } catch (InvalidFirebaseTokenException invalidFirebaseTokenException) {
+            LOGGER.warn("Invalid bearer token: requestId={}, method={}, path={}",
+                    requestId,
+                    request.getMethod(),
+                    sanitizedPath);
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid bearer token.");
         }
     }
@@ -95,5 +116,13 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
             return Optional.empty();
         }
         return Optional.of(idToken);
+    }
+
+    private String resolveRequestId(HttpServletRequest request) {
+        Object requestId = request.getAttribute(ApiRequestLoggingFilter.REQUEST_ID_ATTRIBUTE);
+        if (requestId instanceof String value && StringUtils.hasText(value)) {
+            return value;
+        }
+        return "n/a";
     }
 }
