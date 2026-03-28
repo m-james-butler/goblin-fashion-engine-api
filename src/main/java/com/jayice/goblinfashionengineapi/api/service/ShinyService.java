@@ -27,6 +27,22 @@ public class ShinyService {
         return shinyFirestoreMapper.toCanonicalList(shinyDocuments);
     }
 
+    public Shiny getShiny(String goblinId, String hoardId, String shinyId) {
+        if (!StringUtils.hasText(goblinId) || !StringUtils.hasText(hoardId) || !StringUtils.hasText(shinyId)) {
+            throw new IllegalArgumentException("goblinId, hoardId, and shinyId are required.");
+        }
+
+        try {
+            ShinyDocument shinyDocument = shinyFirestoreGateway.getShiny(goblinId, hoardId, shinyId);
+            return shinyFirestoreMapper.toCanonical(shinyDocument);
+        } catch (ShinyDocumentNotFoundException shinyDocumentNotFoundException) {
+            throw new ShinyNotFoundException(
+                    "Shiny not found for this goblin, hoard, and shiny id.",
+                    shinyDocumentNotFoundException
+            );
+        }
+    }
+
     public Shiny createShiny(String goblinId, String hoardId, Shiny shiny) {
         if (!StringUtils.hasText(goblinId) || !StringUtils.hasText(hoardId)) {
             throw new IllegalArgumentException("goblinId and hoardId are required.");

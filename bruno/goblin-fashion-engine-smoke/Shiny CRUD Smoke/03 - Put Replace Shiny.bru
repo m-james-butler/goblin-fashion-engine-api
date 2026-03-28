@@ -1,0 +1,60 @@
+meta {
+  name: 03 - Put Replace Shiny
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}/api/goblins/{{goblinId}}/hoards/{{hoardId}}/shinies/{{shinyId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{firebaseToken}}
+}
+
+body:json {
+  {
+    "id": "{{shinyId}}",
+    "name": "replacement",
+    "count": 2,
+    "category": "TOP",
+    "subcategory": "SHIRT",
+    "contexts": ["SMART_CASUAL", "DINNER"],
+    "formality": "FORMAL",
+    "warmth": 2,
+    "layer": "MID",
+    "colorPrimary": "WHITE",
+    "colorSecondary": "BLUE",
+    "pattern": "HEATHERED",
+    "fabric": "LINEN",
+    "fit": "SLIM",
+    "officeOk": true,
+    "publicWear": true,
+    "imagePath": "/images/smoke-test-replaced.jpg",
+    "includeInEngine": false,
+    "status": "REPAIR",
+    "notes": "PUT replacement smoke test",
+    "attention": "MEDIUM"
+  }
+}
+
+tests {
+  test("status is 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+  
+  test("put replacement fields are returned", function () {
+    const body = res.getBody();
+    expect(body.id).to.equal(bru.getEnvVar("shinyId"));
+    expect(body.count).to.equal(2);
+    expect(body.category).to.equal("TOP");
+    expect(body.subcategory).to.equal("SHIRT");
+    expect(body.status).to.equal("REPAIR");
+    expect(body.notes).to.equal("PUT replacement smoke test");
+    expect(body.includeInEngine).to.equal(false);
+    expect(body.imagePath).to.equal("/images/smoke-test-replaced.jpg");
+  });
+}

@@ -56,6 +56,28 @@ public class ShinyController {
         return shinyDtoMapper.toResponseDtoList(shinyService.getShiniesByGoblinIdAndHoardId(goblinId, hoardId));
     }
 
+    @GetMapping("/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}")
+    public ShinyResponseDto getShinyByGoblinIdAndHoardIdAndShinyId(
+            @PathVariable String goblinId,
+            @PathVariable String hoardId,
+            @PathVariable String shinyId,
+            HttpServletRequest request
+    ) {
+        AuthenticatedGoblin authenticatedGoblin = AuthenticatedGoblinRequestContext.getRequired(request);
+        if (!authenticatedGoblin.goblinId().equals(goblinId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Authenticated goblin does not match path goblinId."
+            );
+        }
+
+        try {
+            return shinyDtoMapper.toResponseDto(shinyService.getShiny(goblinId, hoardId, shinyId));
+        } catch (ShinyNotFoundException shinyNotFoundException) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, shinyNotFoundException.getMessage());
+        }
+    }
+
     @GetMapping("/hoards/{hoardId}/shinies")
     public List<ShinyResponseDto> getShiniesByHoardId(@PathVariable String hoardId, HttpServletRequest request) {
         String resolvedGoblinId = AuthenticatedGoblinRequestContext.get(request)

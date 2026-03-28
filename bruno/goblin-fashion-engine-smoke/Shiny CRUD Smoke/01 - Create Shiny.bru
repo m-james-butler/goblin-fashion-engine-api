@@ -1,0 +1,66 @@
+meta {
+  name: 01 - Create Shiny
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://{{baseUrl}}/api/goblins/{{goblinId}}/hoards/{{hoardId}}/shinies
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{firebaseToken}}
+}
+
+body:json {
+  {
+    "id": "{{shinyId}}",
+    "name": "Test Name",
+    "count": 1,
+    "category": "TOP",
+    "subcategory": "TSHIRT",
+    "contexts": ["CASUAL", "OUTDOOR"],
+    "formality": "CASUAL",
+    "warmth": 1,
+    "layer": "BASE",
+    "colorPrimary": "BLACK",
+    "colorSecondary": "RED",
+    "pattern": "SOLID",
+    "fabric": "COTTON",
+    "fit": "REGULAR",
+    "officeOk": false,
+    "publicWear": true,
+    "imagePath": "/images/smoke-test-shirt.jpg",
+    "includeInEngine": true,
+    "status": "OWNED",
+    "notes": "Initial smoke test create",
+    "attention": "LOW"
+  }
+}
+
+tests {
+  test("status is 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+  
+  test("create returns shiny identity", function () {
+    const body = res.getBody();
+    expect(body.id).to.equal(bru.getEnvVar("shinyId"));
+    expect(body.goblinId).to.equal(bru.getEnvVar("goblinId"));
+    expect(body.hoardId).to.equal(bru.getEnvVar("hoardId"));
+  });
+  
+  test("create returns key fields", function () {
+    const body = res.getBody();
+    expect(body.count).to.equal(1);
+    expect(body.category).to.equal("TOP");
+    expect(body.subcategory).to.equal("TSHIRT");
+    expect(body.status).to.equal("OWNED");
+    expect(body.notes).to.equal("Initial smoke test create");
+    expect(body.includeInEngine).to.equal(true);
+    expect(body.imagePath).to.equal("/images/smoke-test-shirt.jpg");
+  });
+}

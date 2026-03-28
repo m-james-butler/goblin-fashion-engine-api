@@ -1,0 +1,21 @@
+meta {
+  name: 08 - Confirm Deleted
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/goblins/{{goblinId}}/hoards/{{hoardId}}/shinies/{{shinyId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{firebaseToken}}
+}
+
+tests {
+  test("status is 404", function () {
+    expect(res.getStatus()).to.equal(404);
+  });
+}

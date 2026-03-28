@@ -69,6 +69,46 @@ class ShinyServiceTest {
     }
 
     @Test
+    void getShinyByIdsDelegatesToGatewayAndReturnsMappedCanonicalShiny() {
+        ShinyDocument shinyDocument = ShinyDocument.builder()
+                .id("SH-001")
+                .goblinId("GBL-001")
+                .hoardId("HRD-001")
+                .name("Battle Jacket")
+                .count(1)
+                .category(ShinyCategory.OUTERWEAR)
+                .build();
+
+        ShinyFirestoreGateway gateway = Mockito.mock(ShinyFirestoreGateway.class);
+        when(gateway.getShiny("GBL-001", "HRD-001", "SH-001")).thenReturn(shinyDocument);
+
+        ShinyService shinyService = new ShinyService(gateway, new ShinyFirestoreMapper());
+
+        Shiny shiny = shinyService.getShiny("GBL-001", "HRD-001", "SH-001");
+
+        assertEquals("SH-001", shiny.getId());
+        assertEquals("GBL-001", shiny.getGoblinId());
+        assertEquals("HRD-001", shiny.getHoardId());
+        assertEquals("Battle Jacket", shiny.getName());
+        assertEquals(ShinyCategory.OUTERWEAR, shiny.getCategory());
+        verify(gateway).getShiny("GBL-001", "HRD-001", "SH-001");
+    }
+
+    @Test
+    void getShinyByIdsPropagatesNotFoundAsShinyNotFoundException() {
+        ShinyFirestoreGateway gateway = Mockito.mock(ShinyFirestoreGateway.class);
+        when(gateway.getShiny("GBL-001", "HRD-001", "SH-001"))
+                .thenThrow(new ShinyDocumentNotFoundException("not found"));
+
+        ShinyService shinyService = new ShinyService(gateway, new ShinyFirestoreMapper());
+
+        assertThrows(
+                ShinyNotFoundException.class,
+                () -> shinyService.getShiny("GBL-001", "HRD-001", "SH-001")
+        );
+    }
+
+    @Test
     void createShinyDelegatesToGatewayAndReturnsCreatedCanonicalShiny() {
         Shiny shinyToCreate = Shiny.builder()
                 .id("SH-001")

@@ -38,6 +38,7 @@ GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies
 
 ```text
 POST /api/goblins/{goblinId}/hoards/{hoardId}/shinies
+GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
 PUT /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
 PATCH /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
 DELETE /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}
@@ -71,6 +72,7 @@ For authenticated requests, it resolves goblin ownership from Firebase UID first
 Current primary endpoints:
 
 - `GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies`
+- `GET /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}`
 - `POST /api/goblins/{goblinId}/hoards/{hoardId}/shinies`
 - `PUT /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}`
 - `PATCH /api/goblins/{goblinId}/hoards/{hoardId}/shinies/{shinyId}`
@@ -85,13 +87,13 @@ Current first-stage Firebase enforcement:
 - keep goblin ownership authoritative
 - verify `Authorization: Bearer <firebase-id-token>` with Firebase Admin SDK
 - derive authoritative `goblinId` from Firebase UID
-- enforce on goblin-aware shiny routes (`GET/POST/PUT/PATCH/DELETE`):
+- enforce on goblin-aware shiny routes (`GET list/GET item/POST/PUT/PATCH/DELETE`):
 - missing token -> `401`
 - invalid token -> `401`
 - token uid mismatch with path goblinId -> `403`
 - uid/path match -> continue
 - create duplicate id -> `409` (create only)
-- patch/update/delete missing shiny -> `404` (item routes)
+- item read/patch/update/delete missing shiny -> `404` (item routes)
 - after frontend migration, remove transitional compatibility endpoint
 
 This keeps ownership constraints explicit while enabling a clean move to auth-derived tenancy.
@@ -206,8 +208,10 @@ Current tests cover:
 
 - Firebase token verification service behavior (`uid` mapping and invalid-token handling)
 - controller auth responses for `401`, `403`, and success paths on goblin-aware shiny endpoints
+- controller single-item read responses (`401`, `403`, `404`, `200`)
 - ownership mismatch blocking before service execution
 - service behavior using mocked Firestore gateway
+- service single-item read delegation and not-found propagation
 - Firestore mapper (`ShinyDocument <-> Shiny`) behavior
 - controller DTO request/response mapping for create and update
 - controller patch response mapping and patch status handling

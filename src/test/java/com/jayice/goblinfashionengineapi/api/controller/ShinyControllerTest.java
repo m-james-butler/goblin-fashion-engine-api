@@ -115,6 +115,69 @@ class ShinyControllerTest {
     }
 
     @Test
+    void getShinyByIdWithoutBearerTokenReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/goblins/GBL-001/hoards/HRD-001/shinies/SH-001"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void getShinyByIdWithOwnershipMismatchReturnsForbidden() throws Exception {
+        when(firebaseTokenVerifier.verify("valid-token"))
+                .thenReturn(new AuthenticatedGoblin("GBL-999"));
+
+        mockMvc.perform(get("/api/goblins/GBL-001/hoards/HRD-001/shinies/SH-001")
+                        .header("Authorization", "Bearer valid-token"))
+                .andExpect(status().isForbidden());
+
+        verify(shinyService, never()).getShiny("GBL-001", "HRD-001", "SH-001");
+    }
+
+    @Test
+    void getShinyByIdWhenMissingReturnsNotFound() throws Exception {
+        when(firebaseTokenVerifier.verify("good-token"))
+                .thenReturn(new AuthenticatedGoblin("GBL-001"));
+        when(shinyService.getShiny("GBL-001", "HRD-001", "SH-001"))
+                .thenThrow(new ShinyNotFoundException("Shiny not found."));
+
+        mockMvc.perform(get("/api/goblins/GBL-001/hoards/HRD-001/shinies/SH-001")
+                        .header("Authorization", "Bearer good-token"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getShinyByIdWithMatchingOwnershipReturnsResponseDto() throws Exception {
+        Shiny canonicalShiny = Shiny.builder()
+                .id("SH-001")
+                .goblinId("GBL-001")
+                .hoardId("HRD-001")
+                .name("Battle Jacket")
+                .category(ShinyCategory.OUTERWEAR)
+                .build();
+        ShinyResponseDto shinyResponseDto = ShinyResponseDto.builder()
+                .id("SH-001")
+                .goblinId("GBL-001")
+                .hoardId("HRD-001")
+                .name("Battle Jacket")
+                .category(ShinyCategory.OUTERWEAR)
+                .build();
+
+        when(firebaseTokenVerifier.verify("good-token"))
+                .thenReturn(new AuthenticatedGoblin("GBL-001"));
+        when(shinyService.getShiny("GBL-001", "HRD-001", "SH-001"))
+                .thenReturn(canonicalShiny);
+        when(shinyDtoMapper.toResponseDto(canonicalShiny)).thenReturn(shinyResponseDto);
+
+        mockMvc.perform(get("/api/goblins/GBL-001/hoards/HRD-001/shinies/SH-001")
+                        .header("Authorization", "Bearer good-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("SH-001"))
+                .andExpect(jsonPath("$.goblinId").value("GBL-001"))
+                .andExpect(jsonPath("$.hoardId").value("HRD-001"))
+                .andExpect(jsonPath("$.name").value("Battle Jacket"))
+                .andExpect(jsonPath("$.category").value("OUTERWEAR"));
+    }
+
+    @Test
     void transitionalEndpointUsesAuthenticatedGoblinId() throws Exception {
         List<Shiny> canonicalShinies = List.of();
         when(firebaseTokenVerifier.verify("transition-token"))

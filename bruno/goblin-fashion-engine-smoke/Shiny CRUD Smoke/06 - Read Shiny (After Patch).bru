@@ -1,0 +1,38 @@
+meta {
+  name: 06 - Read Shiny (After Patch)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/goblins/{{goblinId}}/hoards/{{hoardId}}/shinies/{{shinyId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{firebaseToken}}
+}
+
+tests {
+  test("status is 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("read after patch reflects patch semantics", function () {
+    const shiny = res.getBody();
+
+    expect(shiny.id).to.equal(bru.getEnvVar("shinyId"));
+
+    expect(shiny.status).to.equal("DONATE");
+    expect(shiny.notes).to.equal("PATCH smoke test update");
+    expect(shiny.includeInEngine).to.equal(true);
+
+    expect(shiny.imagePath).to.equal("/images/smoke-test-replaced.jpg");
+    expect(shiny.count).to.equal(2);
+    expect(shiny.category).to.equal("TOP");
+    expect(shiny.subcategory).to.equal("SHIRT");
+    expect(shiny.fabric).to.equal("LINEN");
+    expect(shiny.fit).to.equal("SLIM");
+  });
+}

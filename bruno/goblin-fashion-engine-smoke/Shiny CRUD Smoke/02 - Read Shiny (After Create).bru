@@ -1,0 +1,34 @@
+meta {
+  name: 02 - Read Shiny (After Create)
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://{{baseUrl}}/api/goblins/{{goblinId}}/hoards/{{hoardId}}/shinies/{{shinyId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{firebaseToken}}
+}
+
+tests {
+  test("status is 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+  
+  test("created shiny matches create fields", function () {
+    const shiny = res.getBody();
+
+    expect(shiny.id).to.equal(bru.getEnvVar("shinyId"));
+    expect(shiny.count).to.equal(1);
+    expect(shiny.category).to.equal("TOP");
+    expect(shiny.subcategory).to.equal("TSHIRT");
+    expect(shiny.status).to.equal("OWNED");
+    expect(shiny.notes).to.equal("Initial smoke test create");
+    expect(shiny.includeInEngine).to.equal(true);
+    expect(shiny.imagePath).to.equal("/images/smoke-test-shirt.jpg");
+  });
+}

@@ -1,0 +1,45 @@
+meta {
+  name: 05 - Patch Shiny
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{baseUrl}}/api/goblins/{{goblinId}}/hoards/{{hoardId}}/shinies/{{shinyId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{firebaseToken}}
+}
+
+body:json {
+  {
+    "status": "DONATE",
+    "notes": "PATCH smoke test update",
+    "includeInEngine": true,
+    "imagePath": null
+  }
+}
+
+tests {
+  test("status is 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+  
+  test("patch updates only intended fields", function () {
+    const body = res.getBody();
+    expect(body.id).to.equal(bru.getEnvVar("shinyId"));
+  
+    expect(body.status).to.equal("DONATE");
+    expect(body.notes).to.equal("PATCH smoke test update");
+    expect(body.includeInEngine).to.equal(true);
+  
+    expect(body.imagePath).to.equal("/images/smoke-test-replaced.jpg");
+    expect(body.count).to.equal(2);
+    expect(body.category).to.equal("TOP");
+    expect(body.subcategory).to.equal("SHIRT");
+  });
+}

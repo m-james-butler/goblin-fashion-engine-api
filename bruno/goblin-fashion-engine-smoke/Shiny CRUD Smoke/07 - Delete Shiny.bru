@@ -1,0 +1,21 @@
+meta {
+  name: 07 - Delete Shiny
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/api/goblins/{{goblinId}}/hoards/{{hoardId}}/shinies/{{shinyId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{firebaseToken}}
+}
+
+tests {
+  test("status is 204", function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}
